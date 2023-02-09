@@ -1,0 +1,26 @@
+include moreCode
+include betterCode
+
+load spriteData from "spriteSheet.png"
+
+playerObject: object ptr = getSpriteFromThingy()
+
+func isRightBeingHeld(): word{
+    returnStore: word
+    asm{
+        "some asm stuff with a return"
+    }
+    return returnStore
+}
+
+func main(){
+    while isRightBeingHeld() {
+        @playerObject.x = @playerObject.x + 1
+    }
+}
+
+func doAThing(a: word, b: word)=> word{
+
+}
+
+thingPtr: (word, word ptr)=> word

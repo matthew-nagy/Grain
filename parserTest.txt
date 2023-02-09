@@ -1,0 +1,8 @@
+load playerSprites from "playerSprites.png"
+include
+include "greg"
+include something else
+nothing much
+load myAss
+include "Alyssa"
+load myAss from "Alyssa"
