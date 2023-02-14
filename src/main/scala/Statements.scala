@@ -1,15 +1,19 @@
 package Grain
 package Stmt:
+
+  import Utility.Token
+
   sealed trait TopLevel
   sealed trait Statement
 
-  case class Assembly(lines: List[String]) extends Statement
+  case class Assembly(assembly: String) extends Statement
   case class Block(statements: List[Statement]) extends Statement
   case class EmptyStatement() extends Statement
   case class Expression(expr: Expr.Expr) extends Statement
   case class FunctionDecl(name: Token, arguments: List[Token], body: Option[Statement]) extends Statement with TopLevel
   case class If(condition: Expr.Expr, thenBranch: Statement, elseBranch: Option[Statement]) extends Statement
-  case class Return(value: Option[Expr.Expr]) extends Statement
+  case class Return(value: Option[Expr.Expr]) extends St
+  atement
   case class VariableDecl(name: Token, initializer: Option[Expr.Expr]) extends Statement with TopLevel
   case class While(condition: Expr.Expr, body: Statement) extends Statement
 

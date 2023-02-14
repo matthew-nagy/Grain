@@ -1,59 +1,69 @@
 package Grain
 
+import Utility.{Token, TokenType}
+
 import scala.io.Source
 import scala.annotation.tailrec
 
 object Scanner{
 
+  case class LabeledLine(line:String, lineNumber:Int)
+
   //A class that can take many lines and abstract the access to a queue-like structure
-  private class CharBank(val lines: List[String]){
-    private var currentLine = 0
+  private class CharBank(val lines: List[LabeledLine]){
+    private var bankIndex = 0
     private var charIndex = 0
 
     private var startLine = 0
     private var startIndex = 0
 
     def setStart():Unit = {
-      startLine = currentLine
+      startLine = bankIndex
       startIndex = charIndex
     }
 
-    def getCurrentLine: Int = currentLine
+    def getCurrentLine: Int = {
+      if(bankIndex == lines.length){
+        lines(lines.length - 1).lineNumber + 1
+      } else{
+        lines(bankIndex).lineNumber
+      }
+    }
 
     def goToNextLine():Unit = {
-      currentLine += 1
+      bankIndex += 1
       charIndex = 0
     }
 
     def getSubstring:String = {
       val builder = new StringBuilder("")
-      val endLine = currentLine
+      val endLine = bankIndex
       val endIndex = charIndex
 
-      currentLine = startLine
+      bankIndex = startLine
       charIndex = startIndex
 
-      while(!(currentLine == endLine && charIndex == endIndex)){
+      while(!(bankIndex == endLine && charIndex == endIndex)){
         builder += advance()
       }
 
-      currentLine = endLine
+      bankIndex = endLine
       charIndex = endIndex
       builder.toString
     }
 
     def atEndOfFile:Boolean =
-      currentLine == lines.length
+      bankIndex == lines.length
 
     def peek:Char =
       if(atEndOfFile) 0
-      else lines(currentLine)(charIndex)
+      else lines(bankIndex).line(charIndex)
 
     def advance():Char = {
       val c = peek
       charIndex += 1
-      if(charIndex == lines(currentLine).length){
-        currentLine += 1
+      if(charIndex == lines(bankIndex).line.length){
+        bankIndex += 1
         charIndex = 0
       }
       c
@@ -64,8 +74,25 @@ object Scanner{
   private class ScannerObject(val charBank: CharBank) {
 
     private def scanNumericLiteral(startLine: Int, c: Char): TokenType = {
-      while (Token.isNumericChar(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
-      TokenType.IntLiteral
+      c match
+        case '0' =>
+          charBank.peek match
+            case 'b' =>
+              charBank.advance()
+              while (Token.isBinaryDigit(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
+              TokenType.IntLiteral
+              TokenType.IntLiteral //parse binary
+            case 'x' =>
+              charBank.advance()
+              while (Token.isHexDigit(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
+              TokenType.IntLiteral
+              TokenType.IntLiteral //parse hex
+            case _ => //Regular number
+              while (Token.isNumericChar(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
+              TokenType.IntLiteral
+        case _ =>
+          while (Token.isNumericChar(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
+          TokenType.IntLiteral
     }
     private def scanStringLiteral(startLine: Int): TokenType = {
       while(charBank.peek != '"' && charBank.getCurrentLine == startLine) charBank.advance()
@@ -79,7 +106,6 @@ object Scanner{
 
       tokenText match
         case x if Token.keywordMap.contains(x) => Token.keywordMap(x)
-        case x if Token.typeMap.contains(x) => Token.typeMap(x)
         case _ => TokenType.Identifier
     }
 
@@ -89,6 +115,9 @@ object Scanner{
       val startLine = charBank.getCurrentLine
       val c = charBank.advance()
       c match
+        case '/' if charBank.peek == '/' =>
+          charBank.goToNextLine()
+          scanToken()
         case x if Token.singleCharTokens.contains(x) => Token.singleCharTokens(x)
         case x if Token.doubleCharTokens.contains(x) =>
           val doubleTokenEntry = Token.doubleCharTokens(c)
@@ -102,9 +131,6 @@ object Scanner{
         case x if Token.isNumericChar(x) => scanNumericLiteral(startLine, x)
         case '"' => scanStringLiteral(startLine)
         case x if Token.isValidAlphabetChar(x) => scanIdentifier(startLine)
-        case '/' if charBank.peek == '/' =>
-          charBank.goToNextLine()
-          scanToken()
         case ' ' => scanToken()
         case '\t' => scanToken()
         case '\r' => scanToken()
@@ -136,7 +162,12 @@ object Scanner{
 
 
   def scanText(lines: List[String]): List[Token] = {
-    val trimmedLines = (for line <- lines yield line.trim).filterNot(isCommentOrEmpty)
+    val trimmedLines = lines.zipWithIndex.map {
+      case (line, number) => LabeledLine(line.trim, number)
+    }.filterNot{
+      case LabeledLine(line, _) => isCommentOrEmpty(line)
+    }
+    // (for line <- lines.zipWithIndex yield case).filterNot(isCommentOrEmpty)
     val charBank = CharBank(trimmedLines)
     val scanner = ScannerObject(charBank)
 

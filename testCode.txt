@@ -1,26 +1,89 @@
-include moreCode
-include betterCode
+//Load the data from the png into backgroundSprites
+//When we do so, we need to make choices about what the palette is. Store that in
+//backgound palettes
+//As these are all known at compile time, they can just ptrs subbed in later
+//Will also remember the ROM bank they were in
+load backgroundSprites, backgroundPalettes from  "data/backgroundSprites.png"
 
-load spriteData from "spriteSheet.png"
 
-playerObject: object ptr = getSpriteFromThingy()
+load playerSprites, playerPalettes from "data/playerSprites.png"
+	referencing "data/paletteComparison.png" and playerSprites[1]
 
-func isRightBeingHeld(): word{
-    returnStore: word
-    asm{
-        "some asm stuff with a return"
-    }
-    return returnStore
-}
+//level1Data is an array of ptrs into the ROM
+load level1Data from "data/level1.Background 1.csv" and "data/level1.Background 2.csv"
+
+//Some globals here
+playerSprite: Object ptr
 
 func main(){
-    while isRightBeingHeld() {
-        @playerObject.x = @playerObject.x + 1
-    }
+	//The 2bpp here is so if you set the target to 5, it would know you are reading ROM
+	//like its 2bpp sprites. I leave it to the user to keep track of indices
+	//Could do something like have a 2bppIndex and 4bppIndex type that can be converted
+	//between but this seems like effort
+
+	pushVRamDMARequest(backgroundSprites, 0, 2bpp)
+	pushCGRamDMARequest(backgroundPalettes, 0)
+
+	executeDMARequests()
+
+	//Because these values are known at compile time, they can be optimised
+	//out to a constant
+	pushVRamDMARequest(playerSprites, sizeof(backgroundSprites) / 2, 4bpp)
+	pushCGRamDMARequest(palette7, 7)
+
+	executeDMARequests()
+
+	setForceBlank(false)
+
+	//It feels odd to use 'or' here but thats how bitflags work
+	enableLayers(objectLayer or bckg1 or bckg2 or bckg3 or bckg4)
+
+	playerSprite =getObject(
+		x = WindowWidth / 2,
+		y = WindowHeight / 2,
+		attributes = makeAttribute(
+			palette = 0,  //0 bc object sprites are always 7->15, so 0 for 7
+			xFlip = false,
+			yFlip = false,
+			pageNumber = 0,
+			priority = 3
+		),
+		//Should optimise out to a const
+		tile = (sizeof(backgroundSprites) / 2) + 1
+	)
+
+	playingTheGame: bool = true
+	setForceBlank(false)
+
+	//It feels odd to use 'or' here but thats how bitflags work
+	enableLayers(objectLayer or bckg1 or bckg2 or bckg3 or bckg4)
+	enableNMI()
+
+	while(playingTheGame){
+		input: Input = pollInput()
+
+		@playerSprite.attributes &= 0b11110001
+		if input.left{
+			@playerSprite.x -= 1
+			@playerSprite.attributes &= 0b00000010
+		}
+		else if input.right{
+			@playerSprite.x += 1
+			@playerSprite.attributes &= 0b00000100
+		}
+
+		//Statement, not a function
+		//Sets a flag saying main was done to true
+		//Then starts preparing for VBlank
+		waitForInterupt
+	}
 }
 
-func doAThing(a: word, b: word)=> word{
+
+func VBlank(){
+
+	//Whatever the user wants to do before OAM is
+	//updated and the frame continues
+	//Can load data or do other fun DMA things
 
 }
-
-thingPtr: (word, word ptr)=> word

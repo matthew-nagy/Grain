@@ -1,8 +1,2 @@
-load playerSprites from "playerSprites.png"
-include
-include "greg"
-include something else
-nothing much
-load myAss
-include "Alyssa"
-load myAss from "Alyssa"
+word ptr ptr [5]
+myAss.isNumber = ((3 + 5 * 19) / ~(13 ==4)) != 8

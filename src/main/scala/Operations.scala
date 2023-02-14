@@ -46,55 +46,71 @@ package Operation:
       case Binary.NotEqual => asInt(left != right)
       case Binary.ShiftLeft => left << right
       case Binary.ShiftRight => left >> right
-      case _ => throw new RuntimeException  //Just in case any illigal cases slipped into the tree
+      case null => throw new RuntimeException  //Just in case any illigal cases slipped into the tree
 
+  object Groups{
+    val ArithmeticTokens: Set[Binary] = Set(
+      Binary.Add, Binary.Subtract, Binary.Multiply, Binary.Divide, Binary.Modulo,
+      Binary.ShiftLeft, Binary.ShiftRight
+    )
+    val RelationalTokens: Set[Binary] = Set(
+      Binary.Equal, Binary.NotEqual, Binary.Greater, Binary.GreaterEqual, Binary.Less, Binary.LessEqual
+    )
+    val LogicalTokens: Set[Binary] = Set(
+      Binary.And, Binary.Or, Binary.Xor
+    )
+  }
+
+
+import Utility.{Token}
 
 package Expr:
+
+  import Utility.Word
+
   sealed trait Expr
-  case class Assign(name: String, arg: Expr) extends Expr
+  case class Assign(name: Token, arg: Expr) extends Expr
+  case class BooleanLiteral(value: Boolean) extends Expr
   case class UnaryOp(op: Operation.Unary, arg: Expr) extends Expr
+
   case class BinaryOp(op: Operation.Binary, left: Expr, right: Expr) extends Expr
   case class NumericalLiteral(value: Int) extends Expr
   case class StringLiteral(value: String) extends Expr
-  case class Variable(name: String) extends Expr
-  case class FunctionCall(name: String, arguments: List[Expr]) extends Expr
+  case class Variable(name: Token) extends Expr
+  case class FunctionCall(function: Expr, arguments: List[Expr]) extends Expr
+
+  case class Get(left: Expr, name: Token) extends Expr
+
+  case class Set(left: Expr, right: Expr) extends Expr
   case class Grouping(internalExpr: Expr) extends Expr
-
-/*
-
-R visitAssignExpr(Assign expr);
-    R visitBinaryExpr(Binary expr);
-    R visitCallExpr(Call expr);
-    R visitGroupingExpr(Grouping expr);
-    R visitLiteralExpr(Literal expr);
-    R visitLogicalExpr(Logical expr);
-    R visitUnaryExpr(Unary expr);
-    R visitVariableExpr(Variable expr);
-
-*/
 
   def OptimiseExpression(expr: Expr): Expr =
     expr match
       case Assign(n, e) => Assign(n, OptimiseExpression(e))
+      case Set(n, e) => Set(OptimiseExpression(n), OptimiseExpression(e))
       case u @ UnaryOp(_, _) => OptimiseUnaryExpression(u)
       case b @ BinaryOp(_, _, _) => OptimiseBinaryExpression(b)
       case FunctionCall(name, args) =>
         FunctionCall(name, for arg <- args yield OptimiseExpression(arg))
-      case Grouping(e) => Grouping(OptimiseExpression(e))
+      case Grouping(x) =>
+        val optimised = OptimiseExpression(x)
+        optimised match
+          case nl@NumericalLiteral(_) => nl
+          case sl@StringLiteral(_) => sl
+          case bl@BooleanLiteral(_) => bl
+          case v@Variable(_) => v
+          case _ => Grouping(optimised)
       case _ => expr
 
   def OptimiseBinaryExpression(expr: BinaryOp): Expr =
     val BinaryOp(op, left, right) = expr
     val treeOptimisedExpr = BinaryOp(op, OptimiseExpression(left), OptimiseExpression(right))
-
-    /*
-    There are some cases unconsidered
+    /*There are some cases unconsidered
     0 - val is just negated val
     val - 0 and val + 0 and 0 + val are just val
     mult 1 and mult 0 is obs
-    other shit
-    */
-
+    Powers of 2, rather than just 2 should cause a shift
+    other shit*/
     import Operation.{Unary as UOp, Binary as BOp}
     treeOptimisedExpr match
       case BinaryOp(op, NumericalLiteral(val1), NumericalLiteral(val2)) =>
@@ -121,23 +137,3 @@ R visitAssignExpr(Assign expr);
       case UnaryOp(UOp.Indirection, UnaryOp(UOp.GetAddress, e)) => e
       case UnaryOp(op, NumericalLiteral(num)) => NumericalLiteral(Operation.applyOperation(op, num))
       case _ => treeOptimisedExpr
-
-
-object Test{
-
-  def main(args: Array[String]): Unit = {
-    val expressions = List(
-      Expr.Assign("Ham salad",
-        Expr.BinaryOp(
-          Operation.Binary.Multiply,
-          Expr.NumericalLiteral(4),
-          Expr.NumericalLiteral(2)
-        ))
-    )
-
-    for e <- expressions do {
-      println(e)
-      println(Expr.OptimiseExpression(e))
-    }
-  }
-}
