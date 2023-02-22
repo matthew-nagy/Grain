@@ -2,7 +2,9 @@ package Grain
 
 package Operation:
   enum Unary:
-    case Minus, Absolute, BooleanNegation, Xor, GetAddress, Indirection, Increment, Decrement
+    case Minus, BooleanNegation, Xor
+
+
 
   enum Binary:
     case Add, Subtract, Multiply, Divide, Modulo,
@@ -14,15 +16,12 @@ package Operation:
   def applyOperation(op: Unary, value: Int): Int =
     op match
       case Unary.Minus => value * -1
-      case Unary.Absolute => value.abs
       case Unary.BooleanNegation =>
         value match
           case 0 => 1
           case _ => 0
       case Unary.Xor => ~value
-      case Unary.Increment => value + 1
-      case Unary.Decrement => value - 1
-      case _ => throw new RuntimeException  //Indirection and address getting should never get to the tree
+      case null => throw new RuntimeException  //Indirection and address getting should never get to the tree
 
   def applyOperation(op: Binary, left: Int, right: Int): Int =
     def asInt(result: Boolean): Int =
@@ -76,12 +75,18 @@ package Expr:
   case class BinaryOp(op: Operation.Binary, left: Expr, right: Expr) extends Expr
   case class NumericalLiteral(value: Int) extends Expr
   case class StringLiteral(value: String) extends Expr
+  case class Indirection(expr: Expr) extends Expr
   case class Variable(name: Token) extends Expr
   case class FunctionCall(function: Expr, arguments: List[Expr]) extends Expr
 
   case class Get(left: Expr, name: Token) extends Expr
+  case class GetAddress(expr: Expr) extends Expr
+
+  case class GetIndex(of: Expr, by: Expr) extends Expr
 
   case class Set(left: Expr, right: Expr) extends Expr
+
+  case class SetIndex(of: Expr, to: Expr) extends Expr
   case class Grouping(internalExpr: Expr) extends Expr
 
   def OptimiseExpression(expr: Expr): Expr =
@@ -92,6 +97,7 @@ package Expr:
       case b @ BinaryOp(_, _, _) => OptimiseBinaryExpression(b)
       case FunctionCall(name, args) =>
         FunctionCall(name, for arg <- args yield OptimiseExpression(arg))
+      case Indirection(GetAddress(e)) => OptimiseExpression(e)
       case Grouping(x) =>
         val optimised = OptimiseExpression(x)
         optimised match
@@ -131,9 +137,6 @@ package Expr:
     treeOptimisedExpr match
       case UnaryOp(UOp.BooleanNegation, UnaryOp(UOp.BooleanNegation, e)) => e
       case UnaryOp(UOp.Minus, UnaryOp(UOp.Minus, e)) => e
-      case UnaryOp(UOp.Absolute, UnaryOp(UOp.Absolute, e)) => UnaryOp(UOp.Absolute, e)
-      case UnaryOp(UOp.Absolute, UnaryOp(UOp.Minus, e)) => UnaryOp(UOp.Absolute, e)
       case UnaryOp(UOp.Xor, UnaryOp(UOp.Xor, e)) => e
-      case UnaryOp(UOp.Indirection, UnaryOp(UOp.GetAddress, e)) => e
       case UnaryOp(op, NumericalLiteral(num)) => NumericalLiteral(Operation.applyOperation(op, num))
       case _ => treeOptimisedExpr

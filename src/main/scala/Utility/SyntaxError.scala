@@ -16,7 +16,17 @@ object Errors{
       badToken.lineNumber,
       "Expected a type, found '" ++ badToken.lexeme ++ "'"
     )
+  def CannotCallType(lineNumber: Int, incorrectType: Type): SyntaxError =
+    SyntaxError(
+      lineNumber,
+      "Cannot call type '" ++ incorrectType.toString ++ "'"
+    )
 
+  def CannotIndexType(lineNumber: Int, incorrectType: Type): SyntaxError =
+    SyntaxError(
+      lineNumber,
+      "Cannot index type '" ++ incorrectType.toString ++ "'"
+    )
   def ExpectedExpression(badToken: Token): SyntaxError =
     SyntaxError(
       badToken.lineNumber,
@@ -45,9 +55,17 @@ object Errors{
       newToken.lineNumber,
       "Redefinition of symbol '" ++ newToken.lexeme ++ "', last defined on line " ++ oldToken.lineNumber.toString
     )
+
+  def DefinitionDoesntMatchType(oldType: Type, newType: Type, token: Token): SyntaxError =
+    SyntaxError(
+      token.lineNumber,
+      "Redefinition of type of symbol '" ++ token.lexeme ++ "', was " ++ oldType.toString ++ " but is now " ++ newType.toString
+    )
+
   def UnclosedCurlyBrackets(brackets: Token): SyntaxError =
     SyntaxError(
       brackets.lineNumber,
       "Brace is not closed before EOF"
     )
+
 }

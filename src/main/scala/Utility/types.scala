@@ -33,6 +33,8 @@ case class Struct(entries: List[Struct.Entry]) extends Type{
     case Some(value) => value
 
   def typeof(name: String): Type = entries.filter(_.symbol.token.lexeme == name).head.symbol.dataType
+  
+  def contains(name: String): Boolean = entries.exists(_.symbol.token.lexeme == name)
 }
 
 def getTypeSize(dataType: Type):Int = {

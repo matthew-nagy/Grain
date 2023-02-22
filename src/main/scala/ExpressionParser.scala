@@ -1,6 +1,6 @@
 package Grain
 
-import Utility.{Errors, SyntaxError, TokenType}
+import Utility.{Errors, Struct, SyntaxError, TokenType}
 
 object ExpressionParser {
 
@@ -25,6 +25,7 @@ object ExpressionParser {
       return expr match
         case Expr.Get(_, _) => Expr.Set(expr, right)
         case Expr.Variable(name) => Expr.Assign(name, right)
+        case Expr.GetIndex(_, _) => Expr.SetIndex(expr, right)
         case _ => throw Errors.invalidLValue(token)
     }
 
@@ -115,7 +116,6 @@ object ExpressionParser {
       val op = token.tokenType match {
         case TokenType.Tilde => Operation.Unary.Xor
         case TokenType.Bang => Operation.Unary.BooleanNegation
-        case TokenType.Asperand => Operation.Unary.Indirection
         case TokenType.Minus => Operation.Unary.Minus
         case _ => throw Errors.expectedUnary(token)
       }
@@ -127,17 +127,29 @@ object ExpressionParser {
   }
   private def finishCall(function: Expr.Expr, scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
     var arguments = List.empty[Expr.Expr]
-    if(tokenBuffer.peekType != TokenType.RightParen){
-      throw new Exception("I didn't dooo this")
+    while(tokenBuffer.peekType != TokenType.RightParen){
+      if arguments.nonEmpty then tokenBuffer.matchType(TokenType.Comma)
+      arguments = getTypeOrThrow[Expr.Expr](parseExpression(scope, tokenBuffer)) :: arguments
     }
-    val paren = tokenBuffer.matchType(TokenType.RightParen)
+    arguments = arguments.reverse
+    tokenBuffer.matchType(TokenType.RightParen)
     Expr.FunctionCall(function, arguments)
   }
   private def parseCall(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
+    var indirection = false
+    if(tokenBuffer.peekType == TokenType.Asperand){
+      indirection = true
+      tokenBuffer.advance()
+    }
     var expr = parsePrimary(scope, tokenBuffer)
+    if(indirection){
+      expr = Expr.Indirection(expr)
+    }
+    var expType = scope.getTypeOf(expr)
 
     while(tokenBuffer.peek.tokenType match{
       case TokenType.LeftParen =>
+        if !expType.isInstanceOf[Utility.FunctionPtr] then throw Errors.CannotCallType(tokenBuffer.peek.lineNumber, expType)
         tokenBuffer.advance()
         expr = finishCall(expr, scope, tokenBuffer)
         true
@@ -146,8 +158,20 @@ object ExpressionParser {
         val name = tokenBuffer.matchType(TokenType.Identifier)
         expr = Expr.Get(expr, name)
         true
+      case TokenType.Asperand =>
+        tokenBuffer.advance()
+        expr = Expr.GetAddress(expr)
+        true
+      case TokenType.LeftSquare =>
+        tokenBuffer.advance()
+        val indexBy = getTypeOrThrow[Expr.Expr](parseExpression(scope, tokenBuffer))
+        tokenBuffer.matchType(TokenType.RightSquare)
+        expr = Expr.GetIndex(expr, indexBy)
+        true
       case _ => false
-    }){}
+    }){
+      expType = scope.getTypeOf(expr)
+    }
 
     expr
   }
@@ -175,4 +199,60 @@ object ExpressionParser {
         throw Errors.ExpectedExpression(token)
   }
 
+
+  private def typeCheckUnary(unary: Operation.Unary, value: Utility.Type): Boolean =
+    unary match
+      case Operation.Unary.Minus => value == Utility.Word()
+      case Operation.Unary.BooleanNegation => value == Utility.BooleanType()
+      case Operation.Unary.Xor => value == Utility.BooleanType() || value == Utility.Word()
+      case null => throw Exception("Invalid case")
+  def typeCheck(expr: Expr.Expr, scope: Scope): Boolean = {
+    import Expr.*
+
+    expr match
+      case Assign(varToken, arg) =>
+        typeCheck(arg, scope) && scope(varToken.lexeme).dataType == scope.getTypeOf(arg)
+      case BooleanLiteral(_) => true
+      case UnaryOp(op, arg) =>
+        typeCheck(arg, scope) && typeCheckUnary(op, scope.getTypeOf(arg))
+      case BinaryOp(op, left, right) =>
+        typeCheck(left, scope) && typeCheck(right, scope) && (op match
+          case _ if Operation.Groups.LogicalTokens.contains(op) || Operation.Groups.RelationalTokens.contains(op) =>
+            scope.getTypeOf(left) == scope.getTypeOf(right)
+          case _ if Operation.Groups.ArithmeticTokens.contains(op) =>
+            scope.getTypeOf(left) == Utility.Word() && scope.getTypeOf(right) == Utility.Word()
+          case _ => throw Exception("Ungrouped binary operation")
+        )
+      case NumericalLiteral(_) => true
+      case StringLiteral(_) => true
+      case Indirection(expr) =>
+        typeCheck(expr, scope) && scope.getTypeOf(expr).isInstanceOf[Utility.Ptr]
+      case Variable(_) => true
+      case FunctionCall(function, arguments) =>
+        val functionType = scope.getTypeOf(function)
+        functionType match
+          case Utility.FunctionPtr(argTypes, _) =>
+            argTypes.zip(arguments.map(scope.getTypeOf)).forall(_ == _) && arguments.forall(typeCheck(_, scope))
+          case _ => false
+      case Get(left, name) =>
+        val leftType = scope.getTypeOf(left)
+        leftType match {
+          case leftType: Struct =>
+            leftType.entries.contains(name.lexeme) && typeCheck(left, scope)
+          case _ => false
+        }
+      case GetAddress(of) =>
+        //Only some types can have their address got
+        (of.isInstanceOf[Variable] || of.isInstanceOf[Get] || of.isInstanceOf[GetIndex]) && typeCheck(of, scope)
+      case GetIndex(of, by) =>
+        val ofType = scope.getTypeOf(of)
+        typeCheck(of, scope) && typeCheck(by, scope) && scope.getTypeOf(by) == Utility.Word() &&
+          (ofType.isInstanceOf[Utility.Array] || ofType.isInstanceOf[Utility.Ptr])
+      case Set(left, right) =>
+        scope.getTypeOf(left) == scope.getTypeOf(right) && typeCheck(left, scope) && typeCheck(right, scope)
+      case SetIndex(left, right) =>
+        scope.getTypeOf(left) == scope.getTypeOf(right) && typeCheck(left, scope) && typeCheck(right, scope)
+      case Grouping(internalExpr) => typeCheck(internalExpr, scope)
+      case null => true
+  }
 }

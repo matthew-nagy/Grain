@@ -95,7 +95,7 @@ object Scanner{
           TokenType.IntLiteral
     }
     private def scanStringLiteral(startLine: Int): TokenType = {
-      while(charBank.peek != '"' && charBank.getCurrentLine == startLine) charBank.advance()
+      while(charBank.peek != '"') charBank.advance()
       charBank.advance()
 
       TokenType.StringLiteral

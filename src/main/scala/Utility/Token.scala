@@ -3,7 +3,7 @@ package Utility
 enum TokenType:
   //Single character tokens first
   case LeftParen, RightParen, LeftBrace, RightBrace, LeftSquare, RightSquare,
-       Comma, Dot, Asperand, Colon,
+       Comma, Dot, Asperand, Colon, Semicolon,
        Minus, Plus, Star, Struct, Slash, Percent, Or, And, Equal, Xor, Bang, Tilde,
        Greater, Less,
   //Double character tokens
@@ -13,8 +13,9 @@ enum TokenType:
   //Built-in Types
        Ptr,
   //Keywords
-       Abs, Assembly, Break, Case, Decrement, Else, False, From, Func, For, If,
+       Abs, Assembly, Break, Case, Decrement, Do, Else, False, From, Func, For, If,
        Include, Increment, Load, Match, Null, Referencing, Return, True, While,
+       Then,
 
 
        EndOfFile, ErrorToken
@@ -56,7 +57,7 @@ object Token{
   import TokenType.*
   val singleCharTokens: Map[Char, TokenType] = Map(
     '(' -> LeftParen, ')' -> RightParen, '{' -> LeftBrace, '}' -> RightBrace, '[' -> LeftSquare, ']' -> RightSquare,
-    ',' -> Comma, '.' -> Dot, '@' -> Asperand, ':' -> Colon,
+    ',' -> Comma, '.' -> Dot, '@' -> Asperand, ':' -> Colon, ';' -> Semicolon,
     '-' -> Minus, '+' -> Plus, '*' -> Star, '/' -> Slash, '%' -> Percent, '|' -> Or, '&' -> And, '^' -> Xor, '~' -> Tilde
   )
 
@@ -73,6 +74,7 @@ object Token{
     "break" -> Break,
     "case" -> Case,
     "decr" -> Decrement,
+    "do" -> Do,
     "else" -> Else,
     "false" -> False,
     "from" -> From,
@@ -88,6 +90,7 @@ object Token{
     "referencing" -> Referencing,
     "return" -> Return,
     "struct" -> Struct,
+    "then" -> Then,
     "true" -> True,
     "while" -> While,
 

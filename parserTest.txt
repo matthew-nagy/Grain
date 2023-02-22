@@ -1,2 +1,23 @@
-word ptr ptr [5]
-myAss.isNumber = ((3 + 5 * 19) / ~(13 ==4)) != 8
+oam: word [128]
+
+func dmaRequest(dummyValue: word)
+func isHoldingLeft():bool
+func resetOAM(oam: word[128])
+
+func main(){
+
+    playing: bool = true
+    currentRequest: word = 0
+
+    while playing do{
+        if isHoldingLeft() then{
+            dmaRequest(currentRequest)
+            currentRequest = currentRequest + 1
+        }
+        else resetOAM(oam)
+    }
+}
+
+func vBlank(){
+    for i:word = 0; i < 8; i = i + 1 do dmaRequest(i)
+}
