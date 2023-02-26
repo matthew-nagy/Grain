@@ -3,7 +3,13 @@ package Utility
 import Grain.Symbol
 
 case class SyntaxError(lineNumber: Int, message: String) extends Exception(message){
-  override def toString: String = "Syntax Error on line " ++ lineNumber.toString ++ ": " ++ message
+  override def toString: String = "Syntax Error on line " ++ lineNumber.toString ++ ": " ++ message ++ " " ++ tag
+
+  private var tag = ""
+  def addTag(newTag: String):SyntaxError = {
+    tag = newTag
+    this
+  }
 }
 object Errors{
   def expectedTokenError(found: Token, expected: TokenType):SyntaxError =

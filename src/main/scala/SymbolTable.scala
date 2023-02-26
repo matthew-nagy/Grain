@@ -3,8 +3,8 @@ import Utility.{Token, Type, Word, getTypeSize, Errors}
 
 import scala.collection.mutable.*
 
-enum DefinitionType:
-  case NotDefined, Defined, Argument, FuncNotDefined, FuncDefined
+
+sealed trait SymbolForm
 
 case class Symbol(
                    name: String,
@@ -12,39 +12,58 @@ case class Symbol(
                    dataType: Type,
                    size: Int,
                    lineNumber: Int,
-                   var definition: DefinitionType
+                   form: SymbolForm
                  )
 object Symbol{
-  def make(token: Token, dataType: Type, defined: DefinitionType): Symbol =
-    Symbol(token.lexeme, token, dataType, getTypeSize(dataType), token.lineNumber, defined)
+  def make(token: Token, dataType: Type, form: SymbolForm): Symbol =
+    Symbol(token.lexeme, token, dataType, getTypeSize(dataType), token.lineNumber, form)
+
+  sealed trait StackStored(var stackOffset: Int = 0)
+
+  case class GlobalVariable() extends SymbolForm
+  case class FunctionDefinition() extends SymbolForm
+  case class Argument() extends SymbolForm with StackStored(0)
+  case class Variable() extends SymbolForm with StackStored(0)
 }
 
 class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable){
   import scala.collection.mutable.ListBuffer
-  private val map = Map.empty[String, Int]
-  private val symbols = ListBuffer.empty[(Symbol, Int)]
+  private val symbolMap = Map.empty[String, Symbol]
+  private var frameSize = 0
   private val children = Map.empty[Stmt.Statement, Scope]
 
+  def parent: Scope = parentScope match
+    case Some(otherScope) => otherScope
+    case None => throw new Exception("Can't exceed global scope")
   def getChild(statement: Stmt.Statement): Scope = children(statement)
   def hasChild(statement: Stmt.Statement): Boolean = children.contains(statement)
   def getChildOrThis(statement: Stmt.Statement): Scope =
     if hasChild(statement) then getChild(statement) else this
 
-  def addSymbol(name: Token, symbol: Symbol): Unit =
-    map.contains(name.lexeme) match
-      case false =>
-        val newOffset = getNewOffset
-        map.addOne(name.lexeme, symbols.length)
-        symbols.append((symbol, newOffset))
-      case true => throw Errors.SymbolRedefinition(symbols(map(name.lexeme))(0).token, name)
+  def size: Int = frameSize
+  def addToStack(form: Symbol.StackStored, symbolSize: Int) = {
+    form.stackOffset = frameSize
+    frameSize += symbolSize
+  }
 
-  def addSymbol(name: Token, varType: Utility.Type, defined: DefinitionType): Unit = {
-    val symbol = Symbol.make(name, varType, defined)
+  def addSymbol(name: Token, symbol: Symbol): Unit =
+    symbolMap.contains(name.lexeme) match
+      case false =>
+        symbol.form match {
+          case stored: Symbol.StackStored => addToStack(stored, symbol.size)
+          case _ =>
+        }
+        symbolMap.addOne(name.lexeme, symbol)
+      case true => throw Errors.SymbolRedefinition(symbolMap(name.lexeme).token, name)
+
+  def addSymbol(name: Token, varType: Utility.Type, form: SymbolForm): Symbol = {
+    val symbol = Symbol.make(name, varType, form)
     addSymbol(name, symbol)
+    symbol
   }
   def apply(index: String):Symbol =
-    if(map.contains(index)){
-      symbols(map(index))(0)
+    if(symbolMap.contains(index)){
+      symbolMap(index)
     }
     else {
       parentScope match
@@ -52,10 +71,13 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
         case Some(scope) => scope(index)
     }
 
-  def getStackOffset(index: String): Int = {
-    throw new Exception("The whole stack thing needs to be messed with rn")
-    symbols(map(index))(1)
-  }
+  def filter(func: Symbol=>Boolean): List[Symbol] = symbolMap.map(
+    (tup: (String, Symbol)) => {
+      val (_, symbol) = tup
+      symbol
+    }
+  ).filter(func(_)).toList
+
   def contains(index: String):Boolean =
     if(strictContains(index)) {
       true
@@ -64,7 +86,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
       case None => false
       case Some(scope) => scope.contains(index)
 
-  def strictContains(index: String): Boolean = map.contains(index)
+  def strictContains(index: String): Boolean = symbolMap.contains(index)
   def newChild():Scope = Scope(Some(this), symbolTable)
 
   def linkStatementWithScope(parentStatement: Stmt.Statement, child: Scope): Stmt.Statement = {
@@ -72,6 +94,15 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
     parentStatement
   }
 
+  private def getIndexTypeOf(arrayExpr: Expr.Expr): Type = {
+    getTypeOf(arrayExpr) match
+      case Utility.Ptr(to) => to
+      case Utility.Array(of, _) => of
+      case _ =>
+        println(arrayExpr.toString)
+        println(getTypeOf(arrayExpr).toString)
+        throw new Exception("Cannot index given type '" ++ getTypeOf(arrayExpr).toString ++ "'")
+  }
   def getTypeOf(expr: Expr.Expr):Type =
     expr match
       case Expr.Assign(name, _) => apply(name.lexeme).dataType
@@ -82,18 +113,12 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
           case _ if Operation.Groups.ArithmeticTokens.contains(op) => Utility.Word()
           case _ if Operation.Groups.RelationalTokens.contains(op) => Utility.BooleanType()
           case _ if Operation.Groups.LogicalTokens.contains(op) => getTypeOf(left)
-          case null => throw new Exception("Not all binary operations are in a group")
+          case _ => throw new Exception("Not all binary operations are in a group")
       case Expr.NumericalLiteral(_) => Utility.Word()
       case Expr.StringLiteral(_) => Utility.StringLiteral()
       case Expr.Variable(name) => apply(name.lexeme).dataType
-      case Expr.GetIndex(arrayExpr, _) =>
-        getTypeOf(arrayExpr) match
-          case Utility.Ptr(to) => to
-          case Utility.Array(of, _) => of
-          case _ =>
-            println(arrayExpr.toString)
-            println(getTypeOf(arrayExpr).toString)
-            throw new Exception("Cannot index given type '" ++ getTypeOf(arrayExpr).toString ++ "'")
+      case Expr.GetIndex(arrayExpr, _) => getIndexTypeOf(arrayExpr)
+      case Expr.SetIndex(_, to) => getTypeOf(to)
       case Expr.Indirection(e) =>
         val Utility.Ptr(innerType) = getTypeOf(e)
         innerType
@@ -112,13 +137,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
       case null => throw new Exception("Matching should be exhaustive")
 
   override def toString: String = {
-    (for (symbol, _) <- symbols yield symbol.toString ++ "\n").toList.toString()
-  }
-  private def getNewOffset: Int = {
-    if symbols.isEmpty then 0 else {
-      val (lastSymbol, lastOffset) = symbols.last
-      lastOffset + getTypeSize(lastSymbol.dataType)
-    }
+    (for symbol <- symbolMap yield symbol.toString ++ "\n").toList.toString()
   }
 }
 

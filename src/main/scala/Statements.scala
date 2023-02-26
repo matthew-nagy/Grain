@@ -12,15 +12,15 @@ package Stmt:
   case class EmptyStatement() extends TopLevel
   case class Expression(expr: Expr.Expr) extends Statement
   case class For(
-                  startExpr: Option[Statement], breakExpr: Option[Expr.Expr],
+                  startStmt: Option[Statement], breakExpr: Option[Expr.Expr],
                   incrimentExpr: Option[Expr.Expr], body: Statement
                 ) extends Statement
-  case class FunctionDecl(funcSymbol: Symbol, arguments: List[Symbol], body: Option[Statement]) extends TopLevel
+  case class FunctionDecl(funcSymbol: Symbol, arguments: List[Symbol], body: Block) extends TopLevel
 
   case class Else(body: Statement) extends Statement
   case class If(condition: Expr.Expr, body: Statement, elseBranch: Option[Else]) extends Statement
   case class Return(value: Option[Expr.Expr]) extends Statement
-  case class VariableDecl(name: Token, initializer: Expr.Expr) extends TopLevel
+  case class VariableDecl(assignment: Expr.Assign) extends TopLevel
   case class While(condition: Expr.Expr, body: Statement) extends Statement
 
   case class Include(filename: Token) extends TopLevel

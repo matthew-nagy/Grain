@@ -2,7 +2,7 @@ package Grain
 
 package Operation:
   enum Unary:
-    case Minus, BooleanNegation, Xor
+    case Minus, BooleanNegation, BitwiseNot
 
 
 
@@ -20,7 +20,7 @@ package Operation:
         value match
           case 0 => 1
           case _ => 0
-      case Unary.Xor => ~value
+      case Unary.BitwiseNot => ~value
       case null => throw new RuntimeException  //Indirection and address getting should never get to the tree
 
   def applyOperation(op: Binary, left: Int, right: Int): Int =
@@ -137,6 +137,6 @@ package Expr:
     treeOptimisedExpr match
       case UnaryOp(UOp.BooleanNegation, UnaryOp(UOp.BooleanNegation, e)) => e
       case UnaryOp(UOp.Minus, UnaryOp(UOp.Minus, e)) => e
-      case UnaryOp(UOp.Xor, UnaryOp(UOp.Xor, e)) => e
+      case UnaryOp(UOp.BitwiseNot, UnaryOp(UOp.BitwiseNot, e)) => e
       case UnaryOp(op, NumericalLiteral(num)) => NumericalLiteral(Operation.applyOperation(op, num))
       case _ => treeOptimisedExpr

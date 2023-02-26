@@ -19,5 +19,6 @@ func main(){
 }
 
 func vBlank(){
-    for i:word = 0; i < 8; i = i + 1 do dmaRequest(i)
+    for i:word = 0; i < 8; i = i + 1 do
+        dmaRequest(i)
 }
