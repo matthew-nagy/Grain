@@ -26,11 +26,14 @@ object Symbol{
   case class Variable() extends SymbolForm with StackStored(0)
 }
 
-class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable){
+class Scope(private val parentScope: Option[Scope], private var returnType: Type, val symbolTable: SymbolTable){
   import scala.collection.mutable.ListBuffer
   private val symbolMap = Map.empty[String, Symbol]
   private var frameSize = 0
   private val children = Map.empty[Stmt.Statement, Scope]
+
+  def getReturnType: Type = returnType
+  def setReturnType(newReturnType: Type): Unit = returnType = newReturnType
 
   def parent: Scope = parentScope match
     case Some(otherScope) => otherScope
@@ -87,8 +90,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
       case Some(scope) => scope.contains(index)
 
   def strictContains(index: String): Boolean = symbolMap.contains(index)
-  def newChild():Scope = Scope(Some(this), symbolTable)
-
+  def newChild():Scope = Scope(Some(this), returnType, symbolTable)
   def linkStatementWithScope(parentStatement: Stmt.Statement, child: Scope): Stmt.Statement = {
     children.addOne(parentStatement, child)
     parentStatement
@@ -142,8 +144,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
 }
 
 class SymbolTable{
-  val globalScope = Scope(None, this)
-  val functions: Map[String, Scope] = Map()
+  val globalScope = Scope(None, Utility.Empty(), this)
   val types: Map[String, Type] = Map(
     "word" -> Word(),
     "bool" -> Utility.BooleanType()

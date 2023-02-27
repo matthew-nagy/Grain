@@ -39,9 +39,9 @@ object ExpressionParser {
     expr
   }
   private def parseLogical(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
-    val expr = parseEquality(scope, tokenBuffer)
+    var expr = parseEquality(scope, tokenBuffer)
 
-    if(
+    while(
       tokenBuffer.peekType == TokenType.Or ||
         tokenBuffer.peekType == TokenType.And
     ){
@@ -49,7 +49,7 @@ object ExpressionParser {
       val op = if(tokenType == TokenType.Or)
         Operation.Binary.Or else Operation.Binary.And
       val right = parseEquality(scope, tokenBuffer)
-      return Expr.BinaryOp(op, expr, right)
+      expr = Expr.BinaryOp(op, expr, right)
     }
     expr
   }
@@ -86,7 +86,7 @@ object ExpressionParser {
     expr
   }
   private def parseTerm(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
-    val expr = parseFactor(scope, tokenBuffer)
+    var expr = parseFactor(scope, tokenBuffer)
 
     val termDict = Map(
       TokenType.Minus -> Operation.Binary.Subtract,
@@ -95,10 +95,10 @@ object ExpressionParser {
       TokenType.ShiftRight -> Operation.Binary.ShiftRight
     )
 
-    if(termDict.contains(tokenBuffer.peekType)){
+    while(termDict.contains(tokenBuffer.peekType)){
       val tokenType = tokenBuffer.advance().tokenType
       val right = parseFactor(scope, tokenBuffer)
-      return Expr.BinaryOp(termDict(tokenType), expr, right)
+      expr = Expr.BinaryOp(termDict(tokenType), expr, right)
     }
 
     expr

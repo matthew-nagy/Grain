@@ -64,7 +64,7 @@ object StatementParser {
 
   private def parseFor(scope: Scope, tokenBuffer: TokenBuffer): Stmt.For = {
     val forScope = scope.newChild()
-    tokenBuffer.matchType(TokenType.For)
+    val forLine = tokenBuffer.matchType(TokenType.For).lineNumber
 
     val startStmt = if(tokenBuffer.peekType == TokenType.Semicolon) None
                     else Some(parseOrThrow(forScope, tokenBuffer))
@@ -78,7 +78,7 @@ object StatementParser {
     tokenBuffer.matchType(TokenType.Do)
     val body = parseOrThrow(forScope, tokenBuffer)
 
-    val forStmt = Stmt.For(startStmt, breakExpr, incrimentExpr, body)
+    val forStmt = Stmt.For(startStmt, breakExpr, incrimentExpr, body, forLine)
     scope.linkStatementWithScope(forStmt, forScope)
     forStmt
   }
@@ -94,7 +94,7 @@ object StatementParser {
   }
   def parseIf(scope: Scope, tokenBuffer: TokenBuffer): Stmt.If = {
     val ifScope = scope.newChild()
-    tokenBuffer.matchType(TokenType.If)
+    val ifLine = tokenBuffer.matchType(TokenType.If).lineNumber
     val condition = ExpressionParser.parseOrThrow(ifScope, tokenBuffer)
     tokenBuffer.matchType(TokenType.Then)
     val ifBody = parseOrThrow(ifScope, tokenBuffer)
@@ -102,7 +102,7 @@ object StatementParser {
     val elseStmt = if(tokenBuffer.peekType != TokenType.Else) None
                    else Some(parseElse(scope, tokenBuffer))
 
-    val ifStmt = Stmt.If(condition, ifBody, elseStmt)
+    val ifStmt = Stmt.If(condition, ifBody, elseStmt, ifLine)
     scope.linkStatementWithScope(ifStmt, ifScope)
     ifStmt
   }
@@ -135,13 +135,13 @@ object StatementParser {
   }
 
   def parseWhile(scope: Scope, tokenBuffer: TokenBuffer): Stmt.While = {
-    tokenBuffer.matchType(TokenType.While)
+    val whileLine = tokenBuffer.matchType(TokenType.While).lineNumber
     val whileScope = scope.newChild()
     val condition = ExpressionParser.parseOrThrow(whileScope, tokenBuffer)
     tokenBuffer.matchType(TokenType.Do)
     val body = parseOrThrow(whileScope, tokenBuffer)
 
-    val whileStmt = Stmt.While(condition, body)
+    val whileStmt = Stmt.While(condition, body, whileLine)
     scope.linkStatementWithScope(whileStmt, whileScope)
     whileStmt
   }
@@ -154,7 +154,7 @@ object StatementParser {
         statements.forall(typeCheck(_, scope.getChildOrThis(statement)))
       case EmptyStatement() => true
       case Expression(expr) => ExpressionParser.typeCheck(expr, scope)
-      case For(startExpr, breakExpr, incrimentExpr, body) =>
+      case For(startExpr, breakExpr, incrimentExpr, body, _) =>
         val forScope = scope.getChildOrThis(statement)
         val startOk = startExpr.isEmpty || startExpr.exists(typeCheck(_, forScope))
         val breakOk = breakExpr.isEmpty || breakExpr.exists(ExpressionParser.typeCheck(_, forScope))
@@ -162,17 +162,17 @@ object StatementParser {
         startOk && breakOk && incrimentOk && typeCheck(body, forScope)
       case FunctionDecl(_, _, body) => typeCheck(body, scope.getChildOrThis(statement))
       case Else(_) => throw Exception("Else branch shouldn't be triggered; handle in the if")
-      case If(condition, body, elseBranch) =>
+      case If(condition, body, elseBranch, _) =>
         val ifOk = scope.getTypeOf(condition) == Utility.BooleanType() && ExpressionParser.typeCheck(condition, scope) &&
           typeCheck(body, scope.getChildOrThis(statement))
         elseBranch match
           case None => ifOk
           case Some(elseStmt) => ifOk && typeCheck(elseStmt.body, scope.getChildOrThis(elseStmt))
-      case Return(_) => throw Exception("Need to edit symbol table " +
-        "and scope to contain data on what type of function this is")
+      case Return(Some(expr)) => ExpressionParser.typeCheck(expr, scope) && (scope.getTypeOf(expr) == scope.getReturnType)
+      case Return(None) => true
       case VariableDecl(Expr.Assign(name, initializer)) =>
         ExpressionParser.typeCheck(initializer, scope) && scope(name.lexeme).dataType == scope.getTypeOf(initializer)
-      case While(condition, body) =>
+      case While(condition, body, _) =>
         ExpressionParser.typeCheck(condition, scope) && scope.getTypeOf(condition) == Utility.BooleanType() && typeCheck(body, scope.getChildOrThis(statement))
       case a @ _ =>
         println(a.toString ++ " hasn't been handled yet")

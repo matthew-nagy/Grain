@@ -25,7 +25,7 @@ object ExpressionTranslator {
             IRBuffer().append(
               IR.Compare(Immediate(0), AReg()) :: IR.BranchIfEqual(Label("+")) ::
                 IR.Load(Immediate(0), AReg()) :: IR.BranchShort(Label("++")) ::
-                IR.PutLabel("+") :: IR.Load(Immediate(1), AReg()) :: IR.PutLabel("++") ::
+                IR.PutLabel(Label("+")) :: IR.Load(Immediate(1), AReg()) :: IR.PutLabel(Label("++")) ::
                 Nil
             )
         AccumulatorLocation(toGetArg.toGetThere.append(afterArg))
@@ -34,20 +34,36 @@ object ExpressionTranslator {
         val leftToStack = getFromStack(left, scope)
         val rightToAccumulator = getFromAccumulator(right, scope)
         val buffer = leftToStack.toGetThere.append(rightToAccumulator.toGetThere)
-        op match
-          case Operation.Binary.Add => buffer.append(
-              IR.ClearCarry() :: IR.AddCarry(leftToStack.address) :: Nil
-            )
-          case Operation.Binary.Subtract => buffer.append(
-              IR.SetCarry() :: IR.SubtractCarry(leftToStack.address) :: Nil
-            )
+        buffer.append(op match
+          case Operation.Binary.Add => IR.ClearCarry() :: IR.AddCarry(leftToStack.address) :: Nil
+          case Operation.Binary.Subtract => IR.SetCarry() :: IR.SubtractCarry(leftToStack.address) :: Nil
+          case Operation.Binary.And => IR.AND(leftToStack.address) :: Nil
+          case Operation.Binary.Or => IR.ORA(leftToStack.address) :: Nil
+          case Operation.Binary.Xor => IR.EOR(leftToStack.address) :: Nil
+
           case _ => throw new Exception("Binary operation not supported yet")
+        )
         buffer.append(scope.getFixStackDecay())
         AccumulatorLocation(buffer)
       case NumericalLiteral(value) => AccumulatorLocation(loadImmediate(AReg(), value))
+      case Indirection(expr) =>
+        expr match
+          case Variable(token) => AccumulatorLocation(IRBuffer().append(
+            IR.Load(scope.getStackAddress(token.lexeme), XReg()) ::
+              IR.Load(DirectIndexed(0, XReg()), AReg()) :: Nil
+          ))
+          case _ => throw new Exception("Cannot perform indirection on " ++ expr.toString)
       case Variable(token) => AccumulatorLocation(
         IRBuffer().append(IR.Load(scope.getStackAddress(token.lexeme), AReg()))
       )
+      case GetAddress(expr) =>
+        expr match
+          case Variable(token) => AccumulatorLocation(IRBuffer().append(
+            IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() ::
+              IR.AddCarry(Immediate(scope.getStackOffset(token.lexeme))) :: Nil
+          ))
+          case _ => throw new Exception("Cannot get address of " ++ expr.toString)
+      case Grouping(internalExpr) => getFromAccumulator(internalExpr, scope)
       case _ =>
         AccumulatorLocation(new IRBuffer())
     result match
@@ -57,6 +73,13 @@ object ExpressionTranslator {
 
   //Can cause stack decay
   def getFromStack(expr: Expr.Expr, scope: TranslatorScope): StackLocation = {
+    def stackFromAccumulator(expr: Expr.Expr, scope: TranslatorScope): StackLocation = {
+      val intoAccumulator = getFromAccumulator(expr, scope)
+      scope.push()
+      StackLocation(StackRelative(0),
+        intoAccumulator.toGetThere.append(IR.PushRegister(AReg()))
+      )
+    }
     val toGetToStack = new IRBuffer
     expr match
       case Assign(varToken, arg) =>
@@ -65,13 +88,14 @@ object ExpressionTranslator {
         val targetAddress = scope.getStackAddress(varToken.lexeme)
         toGetToStack.append(IR.Store(targetAddress, AReg()))
         StackLocation(targetAddress, toGetToStack)
-      case NumericalLiteral(value) =>
-        scope.push()
-        StackLocation(StackRelative(0),
-          loadImmediate(AReg(), value).append(IR.PushRegister(AReg()))
-        )
+      case UnaryOp(_, _) => stackFromAccumulator(expr, scope)
+      case BinaryOp(_, _, _) => stackFromAccumulator(expr, scope)
+      case NumericalLiteral(_) => stackFromAccumulator(expr, scope)
+      case Indirection(_) => stackFromAccumulator(expr, scope)//May be improvable later
       case Variable(name) => StackLocation(scope.getStackAddress(name.lexeme), IRBuffer())
-      case _ => throw new Exception("Not handled in stack yet")
+      case GetAddress(_) => stackFromAccumulator(expr, scope)
+      case Grouping(internalExpr) => getFromStack(internalExpr, scope)
+      case _ => throw new Exception("Not handled in stack yet (" ++ expr.toString ++ ")")
   }
 
   private def loadImmediate(reg: TargetReg, value: Int): IRBuffer =
@@ -96,6 +120,7 @@ object EXPTranslatorMain{
 
     while(tokenBuffer.peekType != TokenType.EndOfFile){
       val exp = Parser.ExpressionParser.parseOrThrow(symbolTable.globalScope, tokenBuffer)
+      println(exp)
       println(ExpressionTranslator.getFromAccumulator(exp, TranslatorScope(symbolTable.globalScope)))
     }
   }

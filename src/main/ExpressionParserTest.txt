@@ -1,5 +1,4 @@
-a = b + 5
-b = ~7
-b = a - b
-a = true
-a = false
+b = 3 - 4 and a + 5
+a = 1 + 2 - 5
+a = b + (b + b)
+a = @b@

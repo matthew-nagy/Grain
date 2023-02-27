@@ -30,23 +30,25 @@ class TranslatorScope(private val innerScope: Scope) {
   def getParent: TranslatorScope =
     TranslatorScope(innerScope.parent)
   def getChild(statement: Stmt.Statement): TranslatorScope =
-    TranslatorScope(innerScope.getChild(statement))
+    TranslatorScope(innerScope.getChildOrThis(statement))
 
   def getSymbol(symbolName: String): Symbol = innerScope(symbolName)
 
   //Currently cannot handle global variables. Maybe have another function that does that
   //and calls this.
-  def getStackAddress(varName: String): Address = {
+  def getStackAddress(varName: String): Address = StackRelative(getStackOffset(varName))
+
+  def getStackOffset(varName: String): Int = {
     var additionalOffset = pushesToTheStack
     var containingScope = innerScope
-    while(!containingScope.strictContains(varName)){
+    while (!containingScope.strictContains(varName)) {
       additionalOffset += containingScope.size
       containingScope = containingScope.parent
     }
 
     val stackStoredForm = getAsStackStored(varName)
     val totalOffset = (containingScope.size - stackStoredForm.stackOffset) + additionalOffset
-    StackRelative(totalOffset)
+    totalOffset
   }
 
   private def getAsStackStored(varName: String): Symbol.StackStored ={

@@ -167,6 +167,8 @@ object TopLevelParser{
         parseType(scope.symbolTable, tokenBuffer)
       case _ => Utility.Empty()
 
+    functionScope.setReturnType(returnType)
+
     val funcSymbol = scope.addSymbol(
       funcName,
       Utility.FunctionPtr(arguments.map(_.dataType), returnType),

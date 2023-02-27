@@ -84,8 +84,8 @@ package IR:
   case class JumpLongWithoutReturn(label: Label) extends Instruction
   case class JumpShortSaveReturn(label: Label) extends Instruction
   case class JumpLongSaveReturn(label: Label) extends Instruction
-  case class ReturnShort(label: Label) extends Instruction
-  case class ReturnLong(label: Label) extends Instruction
+  case class ReturnShort() extends Instruction
+  case class ReturnLong() extends Instruction
 
   //Interrupts
   case class Break(vector: Immediate) extends Instruction
@@ -117,4 +117,5 @@ package IR:
   //Misc
   case class MovePositive(fromPage: Byte, toPage: Byte) extends Instruction
   case class MoveNegative(fromPage: Byte, toPage: Byte) extends Instruction
-  case class PutLabel(labelName: String) extends Instruction
+  case class PutLabel(labelName: Label) extends Instruction
+  case class UserAssembly(code: String) extends Instruction

@@ -1,0 +1,14 @@
+a: word = 10
+b: word = 0
+c: bool = true
+while c do{
+    b = b + a
+    a = a - 1
+    if false then c = false
+
+    if true then{
+        a = 20
+        b = -2
+    }
+    else b = b - 1
+}
