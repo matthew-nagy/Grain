@@ -14,7 +14,7 @@ object StatementTranslator {
   private def toAccumulator(e: Expr.Expr, scope: TranslatorScope): List[IR.Instruction] =
     ExpressionTranslator.getFromAccumulator(e, scope).toGetThere.toList
 
-  def getConditionCode(expr: Expr.Expr, scope: TranslatorScope, toBranchTo: Label, branchType: BranchType): List[IR.Instruction] = {
+  private def getConditionCode(expr: Expr.Expr, scope: TranslatorScope, toBranchTo: Label, branchType: BranchType): List[IR.Instruction] = {
     expr match
       case Expr.BinaryOp(op, left, right) if Operation.Groups.RelationalTokens.contains(op) =>
         val leftStack = ExpressionTranslator.getFromStack(left, scope)
@@ -44,6 +44,7 @@ object StatementTranslator {
         conditionCode ::: branchCondition
   }
 
+
   def translateStatement(stmt: Statement, scope: TranslatorScope): IRBuffer = {
     IRBuffer().append(
     stmt match
@@ -56,7 +57,17 @@ object StatementTranslator {
         blockScope.reduceStack()
       case EmptyStatement() => Nil
       case Expression(expr) => toAccumulator(expr, scope)
-      case For(startStmt, breakExpr, incrimentExpr, body, lineNumber) => throw new Exception("For is not yet supported")
+      case For(startStmt, breakExpr, incrimentExpr, body, lineNumber) =>
+        val forScope = scope.getChild(stmt)
+        val startForLabel = Label("for_l" ++ lineNumber.toString)
+        val endForLabel = Label("for_end_l" ++ lineNumber.toString)
+        val startCode = if(startStmt.isDefined) translateStatement(startStmt.get, forScope).toList else Nil
+        val breakCode = if(breakExpr.isDefined) getConditionCode(breakExpr.get, forScope, endForLabel, BranchType.IfFalse) else Nil
+        val incCode = if(incrimentExpr.isDefined) ExpressionTranslator.getFromAccumulator(incrimentExpr.get, forScope).toGetThere.toList else Nil
+        val forBodyCode = translateStatement(body, forScope).toList
+          forScope.extendStack() ::: startCode ::: (IR.PutLabel(startForLabel) :: Nil) ::: breakCode :::
+          forBodyCode ::: incCode ::: (IR.BranchShort(startForLabel) :: IR.PutLabel(endForLabel) :: Nil) :::
+          forScope.reduceStack()
       case If(condition, body, elseBranch, lineNumber) =>
         val elseStartLabel = Label("Else_l" ++ lineNumber.toString)
         val ifEndLabel = Label("If_End_l" ++ lineNumber.toString)
