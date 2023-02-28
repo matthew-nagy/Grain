@@ -8,16 +8,52 @@ import scala.collection.mutable.ListBuffer
 
 object StatementTranslator {
 
+  enum BranchType:
+    case IfTrue, IfFalse
+
+  private def toAccumulator(e: Expr.Expr, scope: TranslatorScope): List[IR.Instruction] =
+    ExpressionTranslator.getFromAccumulator(e, scope).toGetThere.toList
+
+  def getConditionCode(expr: Expr.Expr, scope: TranslatorScope, toBranchTo: Label, branchType: BranchType): List[IR.Instruction] = {
+    expr match
+      case Expr.BinaryOp(op, left, right) if Operation.Groups.RelationalTokens.contains(op) =>
+        val leftStack = ExpressionTranslator.getFromStack(left, scope)
+        val rightToAcc = toAccumulator(right, scope)
+        val trueOp = if(branchType == BranchType.IfTrue) op else Operation.Groups.oppositeMap(op)
+        val cmpCode = IR.Compare(leftStack.address, AReg())
+        val checkAndBranch = trueOp match
+          case Operation.Binary.Equal => cmpCode :: IR.BranchIfEqual(toBranchTo) :: Nil
+          case Operation.Binary.NotEqual => cmpCode :: IR.BranchIfNotEqual(toBranchTo) :: Nil
+          case Operation.Binary.Less => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: Nil
+          case Operation.Binary.LessEqual => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: IR.BranchIfEqual(toBranchTo) :: Nil
+          case Operation.Binary.Greater =>
+            cmpCode :: IR.BranchIfEqual(Label("+")) :: IR.BranchIfCarrySet(toBranchTo) ::
+              IR.PutLabel(Label("+")) :: Nil
+          case Operation.Binary.GreaterEqual => cmpCode :: IR.BranchIfCarrySet(toBranchTo) :: Nil
+          case _ => throw new Exception("Relational operator " ++ trueOp.toString ++ " is not recognised")
+
+        leftStack.toGetThere.toList ::: rightToAcc ::: checkAndBranch
+      case _ =>
+        val conditionCode = toAccumulator(expr, scope)
+        val branchCondition =IR.Compare(Immediate(1), AReg()) ::
+          (if(branchType == BranchType.IfTrue)
+            IR.BranchIfEqual(toBranchTo)
+          else
+            IR.BranchIfNotEqual(toBranchTo)
+          ) :: Nil
+        conditionCode ::: branchCondition
+  }
+
   def translateStatement(stmt: Statement, scope: TranslatorScope): IRBuffer = {
-    def toAccumulator(e: Expr.Expr, scope: TranslatorScope): List[IR.Instruction] =
-      ExpressionTranslator.getFromAccumulator(e, scope).toGetThere.toList
     IRBuffer().append(
     stmt match
       case Assembly(assembly) => IR.UserAssembly(assembly) :: Nil
       case Block(statements) =>
         val blockScope = scope.getChild(stmt)
         println ("Need to add variables to the stack")
-        statements.map(translateStatement(_, blockScope)).foldLeft(IRBuffer())(_.append(_)).toList
+        blockScope.extendStack() :::
+        statements.map(translateStatement(_, blockScope)).foldLeft(IRBuffer())(_.append(_)).toList :::
+        blockScope.reduceStack()
       case EmptyStatement() => Nil
       case Expression(expr) => toAccumulator(expr, scope)
       case For(startStmt, breakExpr, incrimentExpr, body, lineNumber) => throw new Exception("For is not yet supported")
@@ -26,20 +62,21 @@ object StatementTranslator {
         val ifEndLabel = Label("If_End_l" ++ lineNumber.toString)
         val ifScope = scope.getChild(stmt)
         println("Need to add variables to the stack")
-        val conditionCode = toAccumulator(condition, ifScope)
         val bodyCode = translateStatement(body, ifScope).toList
         val ifEnder = if(elseBranch.isDefined) IR.BranchShort(ifEndLabel) :: Nil else Nil
         val elseCode = if(elseBranch.isDefined) translateStatement(elseBranch.get, scope).toList else Nil
 
-        conditionCode :::
-        (IR.Compare(Immediate(1), AReg()) :: IR.BranchIfNotEqual(elseStartLabel) :: Nil) :::
+        ifScope.extendStack() :::
+        getConditionCode(condition, scope, elseStartLabel, BranchType.IfFalse) :::
         bodyCode ::: ifEnder :::
         (IR.PutLabel(elseStartLabel) :: Nil) ::: elseCode :::
-        (IR.PutLabel(ifEndLabel) :: Nil)
+        (IR.PutLabel(ifEndLabel) :: Nil) ::: ifScope.reduceStack()
 
       case Else(body) =>
         val elseScope = scope.getChild(stmt)
-        translateStatement(body, elseScope).toList
+        elseScope.extendStack() :::
+        translateStatement(body, elseScope).toList :::
+        elseScope.reduceStack()
       case Return(value) =>
         (value match
           case Some(value) => toAccumulator(value, scope)
@@ -51,13 +88,16 @@ object StatementTranslator {
         println("Need to add variables to the stack")
         val startLabel = Label("While_l" ++ lineNumber.toString)
         val endLabel = Label("While_End_l" ++ lineNumber.toString)
-        val conditionCode = toAccumulator(condition, whileScope)
+//        val conditionCode = toAccumulator(condition, whileScope)
         val bodyCode = translateStatement(body, whileScope)
+        whileScope.extendStack() :::
         (IR.PutLabel(startLabel) :: Nil) :::
-        conditionCode :::
-        (IR.Compare(Immediate(0), AReg()) :: IR.BranchIfEqual(endLabel) :: Nil) :::
+        getConditionCode(condition, scope, endLabel, BranchType.IfFalse) :::
+//        conditionCode :::
+//        (IR.Compare(Immediate(0), AReg()) :: IR.BranchIfEqual(endLabel) :: Nil) :::
         bodyCode.toList :::
-        (IR.BranchShort(startLabel) :: IR.PutLabel(endLabel) :: Nil)
+        (IR.BranchShort(startLabel) :: IR.PutLabel(endLabel) :: Nil)  :::
+        whileScope.reduceStack()
 
       case _ => throw new Exception(stmt.toString ++ " cannot be translated yet")
     )

@@ -27,6 +27,17 @@ class TranslatorScope(private val innerScope: Scope) {
     buffer
   }
 
+  //TODO in future count stack size and maybe just ADC the stack pointer if too large
+  def extendStack(): List[IR.Instruction] = {
+    val stackExtentions = innerScope.size / 2
+    (for i <- Range(0, stackExtentions)yield IR.PushRegister(XReg())).toList
+  }
+
+  def reduceStack(): List[IR.Instruction] = {
+    val stackExtentions = innerScope.size / 2
+    (for i <- Range(0, stackExtentions) yield IR.PopRegister(XReg())).toList
+  }
+
   def getParent: TranslatorScope =
     TranslatorScope(innerScope.parent)
   def getChild(statement: Stmt.Statement): TranslatorScope =

@@ -77,6 +77,7 @@ object Scanner{
       c match
         case '0' =>
           charBank.peek match
+            case _ if charBank.getCurrentLine != startLine => TokenType.IntLiteral
             case 'b' =>
               charBank.advance()
               while (Token.isBinaryDigit(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()

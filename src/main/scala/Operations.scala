@@ -1,6 +1,9 @@
 package Grain
 
 package Operation:
+
+  import Grain.Operation.Binary.{GreaterEqual, LessEqual}
+
   enum Unary:
     case Minus, BooleanNegation, BitwiseNot
 
@@ -57,6 +60,11 @@ package Operation:
     )
     val LogicalTokens: Set[Binary] = Set(
       Binary.And, Binary.Or, Binary.Xor
+    )
+
+    val oppositeMap: Map[Binary, Binary] = Map(
+      Binary.Less -> Binary.GreaterEqual, Binary.Greater -> Binary.LessEqual, Binary.Equal -> Binary.NotEqual,
+      Binary.GreaterEqual -> Binary.Less, Binary.LessEqual -> Binary.Greater, Binary.NotEqual -> Binary.Equal
     )
   }
 
