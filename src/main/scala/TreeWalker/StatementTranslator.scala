@@ -24,12 +24,12 @@ object StatementTranslator {
         val checkAndBranch = trueOp match
           case Operation.Binary.Equal => cmpCode :: IR.BranchIfEqual(toBranchTo) :: Nil
           case Operation.Binary.NotEqual => cmpCode :: IR.BranchIfNotEqual(toBranchTo) :: Nil
-          case Operation.Binary.Less => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: Nil
-          case Operation.Binary.LessEqual => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: IR.BranchIfEqual(toBranchTo) :: Nil
+          case Operation.Binary.Less => cmpCode :: IR.BranchIfCarrySet(toBranchTo) :: Nil
+          case Operation.Binary.LessEqual => cmpCode :: IR.BranchIfCarrySet(toBranchTo) :: IR.BranchIfEqual(toBranchTo) :: Nil
           case Operation.Binary.Greater =>
-            cmpCode :: IR.BranchIfEqual(Label("+")) :: IR.BranchIfCarrySet(toBranchTo) ::
+            cmpCode :: IR.BranchIfEqual(Label("+")) :: IR.BranchIfNoCarry(toBranchTo) ::
               IR.PutLabel(Label("+")) :: Nil
-          case Operation.Binary.GreaterEqual => cmpCode :: IR.BranchIfCarrySet(toBranchTo) :: Nil
+          case Operation.Binary.GreaterEqual => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: Nil
           case _ => throw new Exception("Relational operator " ++ trueOp.toString ++ " is not recognised")
 
         leftStack.toGetThere.toList ::: rightToAcc ::: checkAndBranch

@@ -21,8 +21,8 @@ object Translator {
       case DirectIndirect(address) => "(" ++ address.toString ++ ")"
       case DirectIndexedIndirect(address, by) => "(" ++ address.toString ++ ", " ++ getReg(by) ++ ")"
       case DirectIndirectIndexed(address, by) => "(" ++ address.toString ++ "), " ++ getReg(by)
-      case StackRelative(offset) => offset.toString ++ ", s"
-      case StackRelativeIndirectIndexed(offset, by) => "(" ++ offset.toString ++ ", s), " ++ getReg(by)
+      case StackRelative(offset) => (offset - 1).toString ++ ", s"
+      case StackRelativeIndirectIndexed(offset, by) => "(" ++ (offset - 1).toString ++ ", s), " ++ getReg(by)
       case null => throw new Exception("Cannot find this address type")
 
   private def getImAd(imOrAd: ImmediateOrAddress): String =
@@ -159,7 +159,7 @@ object Translator {
     m match
       case MovePositive(fromPage, toPage) => throw new Exception("Not implimented")
       case MoveNegative(fromPage, toPage) => throw new Exception("Not implimented")
-      case PutLabel(labelName: Label) => "." ++ labelName.name
+      case PutLabel(labelName: Label) => labelName.name ++ ":"
       case UserAssembly(code) => code
   }
 

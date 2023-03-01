@@ -1,10 +1,11 @@
 {
-    a: word = 1
-    b: word = 1
+    lesser: word = 1
+    greater: word = 1
     temp: word
-    for i:word = 0; i < 20; i = i + 1 do{
-        temp = a + b
-        a = b
-        b = temp
+    for i:word = 0; i < 8; i = i + 1 do{
+        temp = lesser + greater
+        lesser = greater
+        greater = temp
     }
+    return greater
 }
