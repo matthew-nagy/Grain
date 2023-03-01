@@ -3,29 +3,29 @@ package TreeWalker
 enum RegisterGroup:
   case XY, A, AXY
 
-sealed trait TargetReg
-sealed trait GeneralPurposeReg extends TargetReg
+sealed trait ImmediateOrAddress
+sealed trait AccumulatorOrAddress
+
 sealed trait AnyReg
-case class XReg() extends GeneralPurposeReg with AnyReg
-case class YReg() extends GeneralPurposeReg with AnyReg
-case class AReg() extends TargetReg with AnyReg
+sealed trait TargetOrStackReg extends AnyReg
+sealed trait TargetReg extends TargetOrStackReg with AnyReg
+sealed trait GeneralPurposeReg extends TargetReg with AnyReg
+case class XReg() extends GeneralPurposeReg with TargetOrStackReg with TargetReg
+case class YReg() extends GeneralPurposeReg with TargetOrStackReg with TargetReg
+case class AReg() extends TargetOrStackReg with AccumulatorOrAddress with TargetReg
 
 case class DirectPageReg() extends AnyReg
-case class StackPointerReg() extends AnyReg
-case class DataPageReg() extends AnyReg
+case class StackPointerReg() extends TargetOrStackReg
 
 
 sealed trait Operand
-sealed trait ImmediateOrAddress
-sealed trait AccumulatorOrAddress
 case class Immediate(value: Int) extends Operand with ImmediateOrAddress
 case class Label(name: String) extends Operand
-case class TargetAccumulator() extends Operand with AccumulatorOrAddress
-
 sealed trait Address extends Operand with ImmediateOrAddress with AccumulatorOrAddress
 case class Direct(address: Int) extends Address
 case class DirectIndexed(address: Int, by: GeneralPurposeReg) extends Address
 case class DirectIndirect(address: Int) extends Address
+case class DirectIndexedIndirect(address: Int, by: GeneralPurposeReg) extends Address
 case class DirectIndirectIndexed(address: Int, by: GeneralPurposeReg) extends Address
 case class StackRelative(offset: Int) extends Address
 case class StackRelativeIndirectIndexed(offset: Int, by: GeneralPurposeReg) extends Address
@@ -68,10 +68,10 @@ package IR:
   case class SetZero(address: Address) extends LoadStore
 
   //Transfer
-  case class TransferToAccumulator(reg: TargetReg | StackPointerReg | DirectPageReg) extends Transfer
-  case class TransferAccumulatorTo(reg: TargetReg | StackPointerReg | DirectPageReg) extends Transfer
-  case class TransferXTo(reg: TargetReg | StackPointerReg) extends Transfer
-  case class TransferToX(reg: TargetReg | StackPointerReg) extends Transfer
+  case class TransferToAccumulator(reg: AnyReg) extends Transfer
+  case class TransferAccumulatorTo(reg: AnyReg) extends Transfer
+  case class TransferXTo(reg: TargetOrStackReg) extends Transfer
+  case class TransferToX(reg: TargetOrStackReg) extends Transfer
   case class TransferYTo(reg: TargetReg) extends Transfer
   case class TransferToY(reg: TargetReg) extends Transfer
 
@@ -106,7 +106,7 @@ package IR:
   //Processor flag
   case class ClearCarry() extends ProcessorFlags
   case class SetCarry() extends ProcessorFlags
-  case class CearOverflow() extends ProcessorFlags
+  case class ClearOverflow() extends ProcessorFlags
   case class EnableInterrupts() extends ProcessorFlags
   case class DisableInterrupts() extends ProcessorFlags
   case class SetReg16Bit(group: RegisterGroup) extends ProcessorFlags //These are just SEP and REP but hidden
@@ -116,12 +116,16 @@ package IR:
   case class ExchangeCarryFlagWithEmulation() extends ProcessorFlags
 
   //Stack Instructions
-  case class PushRegister(reg: AnyReg) extends StackManipulation
-  case class PopRegister(reg: AnyReg) extends StackManipulation
+  case class PushRegister(reg: TargetReg) extends StackManipulation
+  case class PopRegister(reg: TargetReg) extends StackManipulation
+  case class PushDirectPageRegister() extends StackManipulation
+  case class PullDirectPageRegister() extends StackManipulation
+  case class PushDataBankRegister() extends StackManipulation
+  case class PullDataBankRegister() extends StackManipulation
   case class PushProcessorStatus() extends StackManipulation
-  case class PushEffectiveAddress(address: Address) extends StackManipulation
-  case class PushEffectiveAddressIndirect(address: Address) extends StackManipulation
-  case class PushEffectiveAddressRelative(address: Address) extends StackManipulation
+  case class PullProcessorStatus() extends StackManipulation
+  case class PushValue(value: Immediate) extends StackManipulation
+  case class PushAddress(address: Address) extends StackManipulation
 
   //Misc
   case class MovePositive(fromPage: Byte, toPage: Byte) extends Misc

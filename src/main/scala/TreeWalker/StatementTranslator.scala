@@ -51,7 +51,6 @@ object StatementTranslator {
       case Assembly(assembly) => IR.UserAssembly(assembly) :: Nil
       case Block(statements) =>
         val blockScope = scope.getChild(stmt)
-        println ("Need to add variables to the stack")
         blockScope.extendStack() :::
         statements.map(translateStatement(_, blockScope)).foldLeft(IRBuffer())(_.append(_)).toList :::
         blockScope.reduceStack()
@@ -72,7 +71,6 @@ object StatementTranslator {
         val elseStartLabel = Label("Else_l" ++ lineNumber.toString)
         val ifEndLabel = Label("If_End_l" ++ lineNumber.toString)
         val ifScope = scope.getChild(stmt)
-        println("Need to add variables to the stack")
         val bodyCode = translateStatement(body, ifScope).toList
         val ifEnder = if(elseBranch.isDefined) IR.BranchShort(ifEndLabel) :: Nil else Nil
         val elseCode = if(elseBranch.isDefined) translateStatement(elseBranch.get, scope).toList else Nil
@@ -96,17 +94,13 @@ object StatementTranslator {
       case VariableDecl(varDecl) => toAccumulator(varDecl, scope)
       case While(condition, body, lineNumber) =>
         val whileScope = scope.getChild(stmt)
-        println("Need to add variables to the stack")
         val startLabel = Label("While_l" ++ lineNumber.toString)
         val endLabel = Label("While_End_l" ++ lineNumber.toString)
-//        val conditionCode = toAccumulator(condition, whileScope)
         val bodyCode = translateStatement(body, whileScope)
         whileScope.extendStack() :::
         (IR.PutLabel(startLabel) :: Nil) :::
         getConditionCode(condition, scope, endLabel, BranchType.IfFalse) :::
-//        conditionCode :::
-//        (IR.Compare(Immediate(0), AReg()) :: IR.BranchIfEqual(endLabel) :: Nil) :::
-        bodyCode.toList :::
+//      bodyCode.toList :::
         (IR.BranchShort(startLabel) :: IR.PutLabel(endLabel) :: Nil)  :::
         whileScope.reduceStack()
 
@@ -127,10 +121,14 @@ object StatementTranslator {
       statements.append(stmt)
     }
 
-    println(
-      statements
+    val ir = statements
       .map(translateStatement(_, TranslatorScope(symbolTable.globalScope)))
       .foldLeft(IRBuffer())(_.append(_))
-    )
+
+    println(ir)
+
+    val assembly = ir.toList.map(Translator(_)).foldLeft("")(_ ++ "\n" ++ _)
+
+    println(assembly)
   }
 }
