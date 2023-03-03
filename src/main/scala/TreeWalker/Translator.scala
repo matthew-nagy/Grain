@@ -4,7 +4,7 @@ object Translator {
   import IR.*
 
   private def $(values: List[String]): String =
-    values.foldLeft("")(_ ++ " " ++ _)
+    values.tail.foldLeft(values.head)(_ ++ " " ++ _)
 
   private def getReg(reg: TargetOrStackReg | TargetReg): String =
     reg match
@@ -160,7 +160,7 @@ object Translator {
       case MovePositive(fromPage, toPage) => throw new Exception("Not implimented")
       case MoveNegative(fromPage, toPage) => throw new Exception("Not implimented")
       case PutLabel(labelName: Label) => labelName.name ++ ":"
-      case UserAssembly(code) => code
+      case UserAssembly(code) => code.foldLeft(";User Assembly")(_ ++ "\n" ++ _) ++ "\n;End Assembly"
   }
 
 

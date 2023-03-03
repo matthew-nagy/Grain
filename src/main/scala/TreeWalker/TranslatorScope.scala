@@ -9,6 +9,9 @@ class TranslatorScope(private val innerScope: Scope) {
   def push(): Unit = pushesToTheStack += 2
   def pop(): Unit = pushesToTheStack -= 2
 
+  def size: Int = innerScope.size
+  def inner: Scope = innerScope
+
   def rememberStackLocation(): Unit = stackFrames.push(pushesToTheStack)
   def getFixStackDecay(): IRBuffer = {
     val oldState = stackFrames.pop()
@@ -27,6 +30,13 @@ class TranslatorScope(private val innerScope: Scope) {
     buffer
   }
 
+  def offsetToReturnAddress = pushesToTheStack + getOffsetToReturnAddress(0)
+  private def getOffsetToReturnAddress(currentOffset: Int): Int =
+    innerScope match
+      case _: GlobalScope => throw new Exception("Went too far")
+      case _: FunctionScope => currentOffset
+      case s: Scope => getParent.getOffsetToReturnAddress(currentOffset + s.size)
+
   //TODO in future count stack size and maybe just ADC the stack pointer if too large
   def extendStack(): List[IR.Instruction] = {
     val stackExtentions = innerScope.size / 2
@@ -40,16 +50,23 @@ class TranslatorScope(private val innerScope: Scope) {
 
   def getParent: TranslatorScope =
     TranslatorScope(innerScope.parent)
+
   def getChild(statement: Stmt.Statement): TranslatorScope =
     TranslatorScope(innerScope.getChildOrThis(statement))
 
   def getSymbol(symbolName: String): Symbol = innerScope(symbolName)
 
-  //Currently cannot handle global variables. Maybe have another function that does that
-  //and calls this.
-  def getStackAddress(varName: String): Address = StackRelative(getStackOffset(varName))
+  def getAddress(varName: String): Address = {
+    getSymbol(varName).form match
+      case _: Symbol.Variable => getStackAddress(varName)
+      case _: Symbol.Argument => StackRelative(getStackOffset(varName) + 3)
+      case _: Symbol.FunctionDefinition => throw new Exception("Can't get the location of a function (I guess?)")
+      case glob: Symbol.GlobalVariable => Direct(glob.location)
+  }
 
-  def getStackOffset(varName: String): Int = {
+  private def getStackAddress(varName: String): Address = StackRelative(getStackOffset(varName))
+
+  private def getStackOffset(varName: String): Int = {
     var additionalOffset = pushesToTheStack
     var containingScope = innerScope
     while (!containingScope.strictContains(varName)) {

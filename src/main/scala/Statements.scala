@@ -7,7 +7,7 @@ package Stmt:
 
   sealed trait TopLevel extends Statement
 
-  case class Assembly(assembly: String) extends Statement
+  case class Assembly(assembly: List[String]) extends Statement
   case class Block(statements: List[Statement]) extends Statement
   case class EmptyStatement() extends TopLevel
   case class Expression(expr: Expr.Expr) extends Statement

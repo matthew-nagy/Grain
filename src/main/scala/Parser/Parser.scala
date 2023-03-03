@@ -111,7 +111,7 @@ object TopLevelParser{
 
   case class Result(statements: List[Stmt.TopLevel], errors: List[Utility.SyntaxError])
 
-  def apply(scope: Scope, tokenBuffer: TokenBuffer): Result = {
+  def apply(scope: GlobalScope, tokenBuffer: TokenBuffer): Result = {
     import collection.mutable.ListBuffer
     val statements = ListBuffer.empty[Stmt.TopLevel]
     val errors = ListBuffer.empty[Utility.SyntaxError]
@@ -126,7 +126,7 @@ object TopLevelParser{
     Result(statements.toList.filter(!_.isInstanceOf[Stmt.EmptyStatement]), errors.toList)
   }
 
-  def parseTopLevel(scope: Scope, tokenBuffer: TokenBuffer): Stmt.TopLevel | Utility.SyntaxError = {
+  def parseTopLevel(scope: GlobalScope, tokenBuffer: TokenBuffer): Stmt.TopLevel | Utility.SyntaxError = {
     returnTypeOrError{
       val top = tokenBuffer.peekType match
         case TokenType.Func => parseFunction(scope, tokenBuffer)
@@ -141,7 +141,7 @@ object TopLevelParser{
     }
   }
 
-  private def parseFunctionArguments(scope: Scope, tokenBuffer: TokenBuffer): List[Symbol] = {
+  private def parseFunctionArguments(scope: FunctionScope, tokenBuffer: TokenBuffer): List[Symbol] = {
     tokenBuffer.matchType(TokenType.LeftParen)
     val arguments = ListBuffer.empty[Symbol]
     while(tokenBuffer.peekType != TokenType.RightParen) {
@@ -155,9 +155,9 @@ object TopLevelParser{
     tokenBuffer.matchType(TokenType.RightParen)
     arguments.toList
   }
-  private def parseFunction(scope: Scope, tokenBuffer: TokenBuffer): Stmt.TopLevel = {
+  private def parseFunction(scope: GlobalScope, tokenBuffer: TokenBuffer): Stmt.TopLevel = {
     tokenBuffer.matchType(TokenType.Func)
-    val functionScope = scope.newChild()
+    val functionScope = scope.newFunctionChild()
 
     val funcName = tokenBuffer.matchType(TokenType.Identifier)
     val arguments = parseFunctionArguments(functionScope, tokenBuffer)

@@ -8,6 +8,27 @@ object ExpressionTranslator {
   case class StackLocation(address: Address, toGetThere: IRBuffer)
   case class AccumulatorLocation(toGetThere: IRBuffer)
 
+  private def translateFunctionCall(function: Expr.Expr, arguments: List[Expr.Expr], scope: TranslatorScope): AccumulatorLocation = {
+    val buffer = IRBuffer().append(
+      arguments.map(
+        getFromAccumulator(_, scope).toGetThere
+          .append(IR.PushRegister(AReg()))
+          .toList
+      ).foldLeft(IRBuffer().toList)(_ ::: _)
+    )
+    function match
+      case Expr.Variable(funcToken) =>AccumulatorLocation(
+        buffer.append(IR.JumpLongSaveReturn(Label("func_" ++ funcToken.lexeme ++ "_l" ++ funcToken.lineNumber.toString)))
+      )
+      case _ => throw new Exception("Cannot call type at this time")
+
+    val stackSize: Int = arguments.map(e => Utility.getTypeSize(scope.inner.getTypeOf(e))).toList.foldLeft(0)(_+_)
+    buffer.append(
+      IR.Load(Immediate(stackSize), AReg()) :: IR.PushRegister(AReg()) :: IR.TransferToAccumulator(StackPointerReg()) ::
+        IR.SetCarry() :: IR.SubtractCarry(StackRelative(1)) :: IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
+    )
+    AccumulatorLocation(buffer)
+  }
   def getFromAccumulator(expr: Expr.Expr, scope: TranslatorScope): AccumulatorLocation = {
     val result: AccumulatorLocation | StackLocation = expr match
       case Assign(varToken, arg) => getFromStack(expr, scope) //The same in both cases
@@ -45,23 +66,24 @@ object ExpressionTranslator {
         )
         buffer.append(scope.getFixStackDecay())
         AccumulatorLocation(buffer)
+      case FunctionCall(function, arguments) => translateFunctionCall(function, arguments, scope)
       case NumericalLiteral(value) => AccumulatorLocation(loadImmediate(AReg(), value))
       case Indirection(expr) =>
         expr match
           case Variable(token) => AccumulatorLocation(IRBuffer().append(
-            IR.Load(scope.getStackAddress(token.lexeme), XReg()) ::
+            IR.Load(scope.getAddress(token.lexeme), XReg()) ::
               IR.Load(DirectIndexed(0, XReg()), AReg()) :: Nil
           ))
           case _ => throw new Exception("Cannot perform indirection on " ++ expr.toString)
       case Variable(token) => AccumulatorLocation(
-        IRBuffer().append(IR.Load(scope.getStackAddress(token.lexeme), AReg()))
+        IRBuffer().append(IR.Load(scope.getAddress(token.lexeme), AReg()))
       )
       case GetAddress(expr) =>
         expr match
-          case Variable(token) => AccumulatorLocation(IRBuffer().append(
-            IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() ::
-              IR.AddCarry(Immediate(scope.getStackOffset(token.lexeme))) :: Nil
-          ))
+//          case Variable(token) => AccumulatorLocation(IRBuffer().append(
+//            IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() ::
+//              IR.AddCarry(Immediate(scope.getStackOffset(token.lexeme))) :: Nil
+//          ))
           case _ => throw new Exception("Cannot get address of " ++ expr.toString)
       case Grouping(internalExpr) => getFromAccumulator(internalExpr, scope)
       case _ =>
@@ -85,14 +107,15 @@ object ExpressionTranslator {
       case Assign(varToken, arg) =>
         val intoAccumulator = getFromAccumulator(arg, scope)
         toGetToStack.append(intoAccumulator.toGetThere)
-        val targetAddress = scope.getStackAddress(varToken.lexeme)
+        val targetAddress = scope.getAddress(varToken.lexeme)
         toGetToStack.append(IR.Store(targetAddress, AReg()))
         StackLocation(targetAddress, toGetToStack)
+
       case UnaryOp(_, _) => stackFromAccumulator(expr, scope)
       case BinaryOp(_, _, _) => stackFromAccumulator(expr, scope)
       case NumericalLiteral(_) => stackFromAccumulator(expr, scope)
       case Indirection(_) => stackFromAccumulator(expr, scope)//May be improvable later
-      case Variable(name) => StackLocation(scope.getStackAddress(name.lexeme), IRBuffer())
+      case Variable(name) => StackLocation(scope.getAddress(name.lexeme), IRBuffer())
       case GetAddress(_) => stackFromAccumulator(expr, scope)
       case Grouping(internalExpr) => getFromStack(internalExpr, scope)
       case _ => throw new Exception("Not handled in stack yet (" ++ expr.toString ++ ")")

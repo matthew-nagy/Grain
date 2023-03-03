@@ -39,9 +39,12 @@ object StatementParser {
   private def parseAssembly(scope: Scope, tokenBuffer: TokenBuffer): Stmt.Assembly = {
     tokenBuffer.matchType(TokenType.Assembly)
     tokenBuffer.matchType(TokenType.LeftBrace)
-    val content = tokenBuffer.matchType(TokenType.StringLiteral)
+    val assemblyContent = ListBuffer.empty[String]
+    while(tokenBuffer.peekType == TokenType.StringLiteral){
+      assemblyContent.append(tokenBuffer.advance().lexeme.tail.init)
+    }
     tokenBuffer.matchType(TokenType.RightBrace)
-    Stmt.Assembly(content.lexeme)
+    Stmt.Assembly(assemblyContent.toList)
   }
 
   def parseBlock(scope: Scope, tokenBuffer: TokenBuffer): Stmt.Block = {

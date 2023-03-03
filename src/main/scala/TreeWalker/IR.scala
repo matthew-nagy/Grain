@@ -131,4 +131,4 @@ package IR:
   case class MovePositive(fromPage: Byte, toPage: Byte) extends Misc
   case class MoveNegative(fromPage: Byte, toPage: Byte) extends Misc
   case class PutLabel(labelName: Label) extends Misc
-  case class UserAssembly(code: String) extends Misc
+  case class UserAssembly(code: List[String]) extends Misc

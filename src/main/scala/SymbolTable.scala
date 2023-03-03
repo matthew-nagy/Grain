@@ -1,5 +1,6 @@
 package Grain
-import Utility.{Token, Type, Word, getTypeSize, Errors}
+import TreeWalker.GlobalData
+import Utility.{Errors, Token, Type, Word, getTypeSize}
 
 import scala.collection.mutable.*
 
@@ -20,20 +21,19 @@ object Symbol{
 
   sealed trait StackStored(var stackOffset: Int = 0)
 
-  case class GlobalVariable() extends SymbolForm
+  case class GlobalVariable(var location: Int = 0) extends SymbolForm
   case class FunctionDefinition() extends SymbolForm
   case class Argument() extends SymbolForm with StackStored(0)
   case class Variable() extends SymbolForm with StackStored(0)
 }
 
-class Scope(private val parentScope: Option[Scope], private var returnType: Type, val symbolTable: SymbolTable){
+class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable){
   import scala.collection.mutable.ListBuffer
   private val symbolMap = Map.empty[String, Symbol]
   private var frameSize = 0
   private val children = Map.empty[Stmt.Statement, Scope]
 
-  def getReturnType: Type = returnType
-  def setReturnType(newReturnType: Type): Unit = returnType = newReturnType
+  def getReturnType: Type = parent.getReturnType
 
   def parent: Scope = parentScope match
     case Some(otherScope) => otherScope
@@ -48,12 +48,14 @@ class Scope(private val parentScope: Option[Scope], private var returnType: Type
     form.stackOffset = frameSize
     frameSize += symbolSize
   }
+  def addGlobal(form: Symbol.GlobalVariable, symbolSize: Int): Unit = throw new Exception("Can't add global to non global scope")
 
   def addSymbol(name: Token, symbol: Symbol): Unit =
     symbolMap.contains(name.lexeme) match
       case false =>
         symbol.form match {
           case stored: Symbol.StackStored => addToStack(stored, symbol.size)
+          case glob: Symbol.GlobalVariable => addGlobal(glob, symbol.size)
           case _ =>
         }
         symbolMap.addOne(name.lexeme, symbol)
@@ -66,10 +68,10 @@ class Scope(private val parentScope: Option[Scope], private var returnType: Type
   }
   def apply(index: String):Symbol =
     if(symbolMap.contains(index)){
-      symbolMap(index)
+      return symbolMap(index)
     }
     else {
-      parentScope match
+      return parentScope match
         case None => throw new Exception("Cannot find symbol " ++ index)
         case Some(scope) => scope(index)
     }
@@ -90,10 +92,14 @@ class Scope(private val parentScope: Option[Scope], private var returnType: Type
       case Some(scope) => scope.contains(index)
 
   def strictContains(index: String): Boolean = symbolMap.contains(index)
-  def newChild():Scope = Scope(Some(this), returnType, symbolTable)
+  def newChild():Scope = Scope(Some(this), symbolTable)
   def linkStatementWithScope(parentStatement: Stmt.Statement, child: Scope): Stmt.Statement = {
     children.addOne(parentStatement, child)
     parentStatement
+  }
+
+  override def toString: String = {
+    (for symbol <- symbolMap yield symbol.toString ++ "\n").toList.toString()
   }
 
   private def getIndexTypeOf(arrayExpr: Expr.Expr): Type = {
@@ -105,7 +111,8 @@ class Scope(private val parentScope: Option[Scope], private var returnType: Type
         println(getTypeOf(arrayExpr).toString)
         throw new Exception("Cannot index given type '" ++ getTypeOf(arrayExpr).toString ++ "'")
   }
-  def getTypeOf(expr: Expr.Expr):Type =
+
+  def getTypeOf(expr: Expr.Expr): Type =
     expr match
       case Expr.Assign(name, _) => apply(name.lexeme).dataType
       case Expr.BooleanLiteral(_) => Utility.BooleanType()
@@ -130,23 +137,37 @@ class Scope(private val parentScope: Option[Scope], private var returnType: Type
           case _ => throw new Exception("It shouldn't be possible that a call expression doesn't call a function")
       case Expr.Get(left, name) =>
         getTypeOf(left) match
-          case s @ Utility.Struct(_) => s.typeof(name.lexeme)
+          case s@Utility.Struct(_) => s.typeof(name.lexeme)
           case _ => throw new Exception("It shouldn't be possible to get from a non-struct type")
       case Expr.GetAddress(e) =>
         Utility.Ptr(getTypeOf(e))
       case Expr.Set(left, expr) => getTypeOf(left)
       case Expr.Grouping(internalExpr) => getTypeOf(internalExpr)
       case null => throw new Exception("Matching should be exhaustive")
+}
 
-  override def toString: String = {
-    (for symbol <- symbolMap yield symbol.toString ++ "\n").toList.toString()
+class FunctionScope(parentScope: Option[Scope], symbolTable: SymbolTable) extends Scope(parentScope, symbolTable){
+  private var returnType: Type = Utility.Empty()
+  override def getReturnType: Type = returnType
+  def setReturnType(newReturnType: Type):Unit = returnType = newReturnType
+}
+
+class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable){
+  private var globalHeapPtr: Int = 100
+  def newFunctionChild(): FunctionScope = FunctionScope(Some(this), symbolTable)
+
+  override def addToStack(form: Symbol.StackStored, symbolSize: Int) = throw new Exception("Can't add global variable to stack")
+  override def addGlobal(form: Symbol.GlobalVariable, symbolSize: Int): Unit = {
+    form.location = globalHeapPtr
+    globalHeapPtr += 2
   }
 }
 
 class SymbolTable{
-  val globalScope = Scope(None, Utility.Empty(), this)
+  val globalScope = GlobalScope(this)
   val types: Map[String, Type] = Map(
     "word" -> Word(),
     "bool" -> Utility.BooleanType()
   )
 }
+

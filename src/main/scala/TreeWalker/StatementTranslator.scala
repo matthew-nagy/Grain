@@ -24,12 +24,12 @@ object StatementTranslator {
         val checkAndBranch = trueOp match
           case Operation.Binary.Equal => cmpCode :: IR.BranchIfEqual(toBranchTo) :: Nil
           case Operation.Binary.NotEqual => cmpCode :: IR.BranchIfNotEqual(toBranchTo) :: Nil
-          case Operation.Binary.Less => cmpCode :: IR.BranchIfCarrySet(toBranchTo) :: Nil
-          case Operation.Binary.LessEqual => cmpCode :: IR.BranchIfCarrySet(toBranchTo) :: IR.BranchIfEqual(toBranchTo) :: Nil
-          case Operation.Binary.Greater =>
-            cmpCode :: IR.BranchIfEqual(Label("+")) :: IR.BranchIfNoCarry(toBranchTo) ::
+          case Operation.Binary.Greater => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: Nil
+          case Operation.Binary.GreaterEqual => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: IR.BranchIfEqual(toBranchTo) :: Nil
+          case Operation.Binary.Less =>
+            cmpCode :: IR.BranchIfEqual(Label("+")) :: IR.BranchIfCarrySet(toBranchTo) ::
               IR.PutLabel(Label("+")) :: Nil
-          case Operation.Binary.GreaterEqual => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: Nil
+          case Operation.Binary.LessEqual => cmpCode :: IR.BranchIfCarrySet(toBranchTo) :: Nil
           case _ => throw new Exception("Relational operator " ++ trueOp.toString ++ " is not recognised")
 
         leftStack.toGetThere.toList ::: rightToAcc ::: checkAndBranch
@@ -44,8 +44,7 @@ object StatementTranslator {
         conditionCode ::: branchCondition
   }
 
-
-  def translateStatement(stmt: Statement, scope: TranslatorScope): IRBuffer = {
+  private def translateStatement(stmt: Statement, scope: TranslatorScope): IRBuffer = {
     IRBuffer().append(
     stmt match
       case Assembly(assembly) => IR.UserAssembly(assembly) :: Nil
@@ -87,10 +86,15 @@ object StatementTranslator {
         translateStatement(body, elseScope).toList :::
         elseScope.reduceStack()
       case Return(value) =>
-        (value match
+        val commandsToLoadReturn = value match
+          case None => Nil
           case Some(value) => toAccumulator(value, scope)
-          case None =>Nil
-        ) ::: IR.ReturnLong() :: Nil
+        val commandsToResetStackAndReturn =
+          IR.Load(Immediate(scope.offsetToReturnAddress), XReg()) :: IR.TransferXTo(StackPointerReg()) ::
+            IR.ReturnLong() :: Nil
+
+        commandsToLoadReturn ::: commandsToResetStackAndReturn
+
       case VariableDecl(varDecl) => toAccumulator(varDecl, scope)
       case While(condition, body, lineNumber) =>
         val whileScope = scope.getChild(stmt)
@@ -108,21 +112,24 @@ object StatementTranslator {
     )
   }
 
+  def apply(stmt: Statement, scope:TranslatorScope): IRBuffer = translateStatement(stmt, scope)
+
   def main(args: Array[String]): Unit = {
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/StatementParserTest.txt"))
     val symbolTable = new SymbolTable
-    symbolTable.globalScope.setReturnType(Utility.Word())
+    val funcScope = symbolTable.globalScope.newFunctionChild()
+    funcScope.setReturnType(Utility.Word())
 
     val statements = ListBuffer.empty[Stmt.Statement]
 
     while (tokenBuffer.peekType != TokenType.EndOfFile) {
-      val stmt = Parser.StatementParser.parseOrThrow(symbolTable.globalScope, tokenBuffer)
+      val stmt = Parser.StatementParser.parseOrThrow(funcScope, tokenBuffer)
       println(stmt)
       statements.append(stmt)
     }
 
     val ir = statements
-      .map(translateStatement(_, TranslatorScope(symbolTable.globalScope)))
+      .map(translateStatement(_, TranslatorScope(funcScope)))
       .foldLeft(IRBuffer())(_.append(_))
 
     println(ir)
