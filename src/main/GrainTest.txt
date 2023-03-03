@@ -18,6 +18,7 @@ playerXPosition: word = 64
 
 func main(){
     playing: bool = true
+
     while playing do{
         inputByte: word = getInputByte()
         if (inputByte and 4) > 0 then playing = false

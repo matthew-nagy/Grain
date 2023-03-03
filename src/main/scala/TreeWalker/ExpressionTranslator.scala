@@ -22,16 +22,22 @@ object ExpressionTranslator {
       )
       case _ => throw new Exception("Cannot call type at this time")
 
-    val stackSize: Int = arguments.map(e => Utility.getTypeSize(scope.inner.getTypeOf(e))).toList.foldLeft(0)(_+_)
-    buffer.append(
-      IR.Load(Immediate(stackSize), AReg()) :: IR.PushRegister(AReg()) :: IR.TransferToAccumulator(StackPointerReg()) ::
-        IR.SetCarry() :: IR.SubtractCarry(StackRelative(1)) :: IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
-    )
+    val stackSize: Int = arguments.map(e => Utility.getTypeSize(scope.inner.getTypeOf(e))).sum
+    if(arguments.nonEmpty) {
+      buffer.append(
+        IR.TransferToY(AReg()) :: IR.Load(Immediate(stackSize), AReg()) :: IR.PushRegister(AReg()) ::
+          IR.TransferToAccumulator(StackPointerReg()) :: IR.SetCarry() :: IR.SubtractCarry(StackRelative(2)) ::
+          IR.TransferAccumulatorTo(StackPointerReg()) :: IR.TransferToAccumulator(YReg()) :: Nil
+      )
+    }
     AccumulatorLocation(buffer)
   }
   def getFromAccumulator(expr: Expr.Expr, scope: TranslatorScope): AccumulatorLocation = {
     val result: AccumulatorLocation | StackLocation = expr match
-      case Assign(varToken, arg) => getFromStack(expr, scope) //The same in both cases
+      case Assign(varToken, arg) =>
+        val intoAccumulator = getFromAccumulator(arg, scope)
+        val targetAddress = scope.getAddress(varToken.lexeme)
+        AccumulatorLocation(intoAccumulator.toGetThere.append(IR.Store(targetAddress, AReg()).addComment("Storing the assignment")))
       case BooleanLiteral(value) => AccumulatorLocation(
         loadImmediate(AReg(), if(value) 1 else 0)
       )
@@ -98,7 +104,7 @@ object ExpressionTranslator {
     def stackFromAccumulator(expr: Expr.Expr, scope: TranslatorScope): StackLocation = {
       val intoAccumulator = getFromAccumulator(expr, scope)
       scope.push()
-      StackLocation(StackRelative(0),
+      StackLocation(StackRelative(2),
         intoAccumulator.toGetThere.append(IR.PushRegister(AReg()))
       )
     }

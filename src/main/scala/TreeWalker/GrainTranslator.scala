@@ -36,14 +36,23 @@ object GrainTranslator {
       case VariableDecl(assignment) =>
         GlobalsCode(ExpressionTranslator.getFromAccumulator(assignment, TranslatorScope(scope)).toGetThere)
       case FunctionDecl(funcSymbol, _, body) =>
-        val functionScope = scope.getChild(topLevel)
-        val funcLabel = "func_" ++ funcSymbol.name ++ "_l" ++ funcSymbol.lineNumber.toString ++ ":"
+        val functionScope = scope.getChild(topLevel).getChild(body)
+        val tFuncScope = TranslatorScope(functionScope)
+        val funcLabel = "func_" ++ funcSymbol.name ++ "_l" ++ funcSymbol.lineNumber.toString
         //Add an extra return in case you reach the bottom
         //Will cause errors if it is expecting a value, so
         //lets hope that doesn't happen
-        val functionBody = (body.statements ::: (Return(None) :: Nil))
-          .map(StatementTranslator(_, TranslatorScope(functionScope)))
-          .foldLeft(IRBuffer().append(IR.PutLabel(Label(funcLabel))))(_.append(_))
+        val functionBody = IRBuffer()
+          .append(IR.PutLabel(Label(funcLabel)))
+          .append(tFuncScope.extendStack())
+          .append(
+            (body.statements ::: (Return(None) :: Nil))
+            .map(StatementTranslator(_, TranslatorScope(functionScope)))
+            .foldLeft(IRBuffer())(_.append(_))
+            .append(tFuncScope.reduceStack())
+            .append(IR.Spacing())
+          )
+
         FunctionCode(functionBody)
       case _ => throw new Exception("Not done yet")
 

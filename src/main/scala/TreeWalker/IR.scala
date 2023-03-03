@@ -31,7 +31,14 @@ case class StackRelative(offset: Int) extends Address
 case class StackRelativeIndirectIndexed(offset: Int, by: GeneralPurposeReg) extends Address
 
 package IR:
-  sealed trait Instruction
+  sealed trait Instruction{
+    private var comment: Option[String] = None
+    def getComment: Option[String] = comment
+    def addComment(c: String): Instruction = {
+      comment = Some(c)
+      this
+    }
+  }
   sealed trait Arithmetic extends Instruction
   sealed trait LoadStore extends Instruction
   sealed trait Transfer extends Instruction
@@ -132,3 +139,4 @@ package IR:
   case class MoveNegative(fromPage: Byte, toPage: Byte) extends Misc
   case class PutLabel(labelName: Label) extends Misc
   case class UserAssembly(code: List[String]) extends Misc
+  case class Spacing() extends Misc

@@ -17,22 +17,23 @@ object StatementTranslator {
   private def getConditionCode(expr: Expr.Expr, scope: TranslatorScope, toBranchTo: Label, branchType: BranchType): List[IR.Instruction] = {
     expr match
       case Expr.BinaryOp(op, left, right) if Operation.Groups.RelationalTokens.contains(op) =>
+        scope.rememberStackLocation()
         val leftStack = ExpressionTranslator.getFromStack(left, scope)
         val rightToAcc = toAccumulator(right, scope)
         val trueOp = if(branchType == BranchType.IfTrue) op else Operation.Groups.oppositeMap(op)
-        val cmpCode = IR.Compare(leftStack.address, AReg())
-        val checkAndBranch = trueOp match
-          case Operation.Binary.Equal => cmpCode :: IR.BranchIfEqual(toBranchTo) :: Nil
-          case Operation.Binary.NotEqual => cmpCode :: IR.BranchIfNotEqual(toBranchTo) :: Nil
-          case Operation.Binary.Greater => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: Nil
-          case Operation.Binary.GreaterEqual => cmpCode :: IR.BranchIfNoCarry(toBranchTo) :: IR.BranchIfEqual(toBranchTo) :: Nil
+        val compareAndReset = (IR.Compare(leftStack.address, AReg()) :: Nil) ::: scope.getFixStackDecay().toList
+        val branch = trueOp match
+          case Operation.Binary.Equal => IR.BranchIfEqual(toBranchTo) :: Nil
+          case Operation.Binary.NotEqual => IR.BranchIfNotEqual(toBranchTo) :: Nil
+          case Operation.Binary.Greater => IR.BranchIfNoCarry(toBranchTo) :: Nil
+          case Operation.Binary.GreaterEqual => IR.BranchIfNoCarry(toBranchTo) :: IR.BranchIfEqual(toBranchTo) :: Nil
           case Operation.Binary.Less =>
-            cmpCode :: IR.BranchIfEqual(Label("+")) :: IR.BranchIfCarrySet(toBranchTo) ::
+            IR.BranchIfEqual(Label("+")) :: IR.BranchIfCarrySet(toBranchTo) ::
               IR.PutLabel(Label("+")) :: Nil
-          case Operation.Binary.LessEqual => cmpCode :: IR.BranchIfCarrySet(toBranchTo) :: Nil
+          case Operation.Binary.LessEqual => IR.BranchIfCarrySet(toBranchTo) :: Nil
           case _ => throw new Exception("Relational operator " ++ trueOp.toString ++ " is not recognised")
 
-        leftStack.toGetThere.toList ::: rightToAcc ::: checkAndBranch
+        leftStack.toGetThere.toList ::: rightToAcc ::: compareAndReset ::: branch
       case _ =>
         val conditionCode = toAccumulator(expr, scope)
         val branchCondition =IR.Compare(Immediate(1), AReg()) ::
@@ -89,6 +90,12 @@ object StatementTranslator {
         val commandsToLoadReturn = value match
           case None => Nil
           case Some(value) => toAccumulator(value, scope)
+        throw new Exception("Fix")
+        //So, transfer A to Y so you save the return. Load stack to A, then add this offset to return
+        //Set the stack again, transfer Y back to A, then return.
+        //Later we can look into the optimisation to keeping return in y because that may be faster if
+        //its added to the stack later
+        //Not for now though, keep a note of that for later in obsidian
         val commandsToResetStackAndReturn =
           IR.Load(Immediate(scope.offsetToReturnAddress), XReg()) :: IR.TransferXTo(StackPointerReg()) ::
             IR.ReturnLong() :: Nil
@@ -104,7 +111,7 @@ object StatementTranslator {
         whileScope.extendStack() :::
         (IR.PutLabel(startLabel) :: Nil) :::
         getConditionCode(condition, scope, endLabel, BranchType.IfFalse) :::
-//      bodyCode.toList :::
+        bodyCode.toList :::
         (IR.BranchShort(startLabel) :: IR.PutLabel(endLabel) :: Nil)  :::
         whileScope.reduceStack()
 
@@ -112,7 +119,7 @@ object StatementTranslator {
     )
   }
 
-  def apply(stmt: Statement, scope:TranslatorScope): IRBuffer = translateStatement(stmt, scope)
+  def apply(stmt: Statement, scope:TranslatorScope): IRBuffer = translateStatement(stmt, scope.getChild(stmt))
 
   def main(args: Array[String]): Unit = {
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/StatementParserTest.txt"))

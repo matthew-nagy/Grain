@@ -161,10 +161,10 @@ object Translator {
       case MoveNegative(fromPage, toPage) => throw new Exception("Not implimented")
       case PutLabel(labelName: Label) => labelName.name ++ ":"
       case UserAssembly(code) => code.foldLeft(";User Assembly")(_ ++ "\n" ++ _) ++ "\n;End Assembly"
+      case Spacing() => "\n;---------------\n"
   }
 
-
-  def apply(instruction: IR.Instruction): String =
+  private def translatedIR(instruction: IR.Instruction): String =
     instruction match
       case a: Arithmetic => arithmetic(a)
       case ls: LoadStore => loadStore(ls)
@@ -176,4 +176,12 @@ object Translator {
       case sm: StackManipulation => stackManipulation(sm)
       case m: Misc => misc(m)
       case null => throw new Exception("Unknown instruction type -> " ++ instruction.toString)
+
+  private def translatedComment(instruction: IR.Instruction): String =
+    instruction.getComment match
+      case None => ""
+      case Some(comment) => "\t;" ++ comment
+
+  def apply(instruction: IR.Instruction): String =
+    translatedIR(instruction) ++ translatedComment(instruction)
 }
