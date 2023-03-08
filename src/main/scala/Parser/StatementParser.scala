@@ -32,8 +32,9 @@ object StatementParser {
           else
             parseExpression(scope, tokenBuffer)
       if !typeCheck(statement, scope) then throw new Exception("Statement is badly typed: " ++ statement.toString)
+
+      if GlobalData.optimisationFlags.staticOptimiseTree then OptimiseStatement(statement)
       else statement
-      statement
     }
 
   private def parseAssembly(scope: Scope, tokenBuffer: TokenBuffer): Stmt.Assembly = {

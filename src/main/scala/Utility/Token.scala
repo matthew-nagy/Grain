@@ -14,8 +14,8 @@ enum TokenType:
        Ptr,
   //Keywords
        Abs, Assembly, Break, Case, Decrement, Do, Else, False, From, Func, For, If,
-       Include, Increment, Load, Match, Null, Referencing, Return, True, While,
-       Then,
+       Include, Increment, Load, Match, Null, Referencing, Return, Tile, True,
+       Then, While,
 
 
        EndOfFile, ErrorToken
@@ -90,6 +90,7 @@ object Token{
     "referencing" -> Referencing,
     "return" -> Return,
     "struct" -> Struct,
+    "tile" -> Tile,
     "then" -> Then,
     "true" -> True,
     "while" -> While,

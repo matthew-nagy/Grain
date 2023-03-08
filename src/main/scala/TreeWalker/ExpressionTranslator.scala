@@ -17,9 +17,12 @@ object ExpressionTranslator {
       ).foldLeft(IRBuffer().toList)(_ ::: _)
     )
     function match
-      case Expr.Variable(funcToken) =>AccumulatorLocation(
-        buffer.append(IR.JumpLongSaveReturn(Label("func_" ++ funcToken.lexeme ++ "_l" ++ funcToken.lineNumber.toString)))
-      )
+      case Expr.Variable(funcToken) =>
+        val functionSymbol = scope.getSymbol(funcToken.lexeme)
+        val functionDefinitionLine = functionSymbol.lineNumber.toString
+        AccumulatorLocation(
+          buffer.append(IR.JumpLongSaveReturn(Label("func_" ++ funcToken.lexeme ++ "_l" ++ functionDefinitionLine)))
+        )
       case _ => throw new Exception("Cannot call type at this time")
 
     val stackSize: Int = arguments.map(e => Utility.getTypeSize(scope.inner.getTypeOf(e))).sum
@@ -81,6 +84,7 @@ object ExpressionTranslator {
               IR.Load(DirectIndexed(0, XReg()), AReg()) :: Nil
           ))
           case _ => throw new Exception("Cannot perform indirection on " ++ expr.toString)
+      case SetIndex(of, to) => throw new Exception("Working on it")
       case Variable(token) => AccumulatorLocation(
         IRBuffer().append(IR.Load(scope.getAddress(token.lexeme), AReg()))
       )
@@ -93,7 +97,7 @@ object ExpressionTranslator {
           case _ => throw new Exception("Cannot get address of " ++ expr.toString)
       case Grouping(internalExpr) => getFromAccumulator(internalExpr, scope)
       case _ =>
-        AccumulatorLocation(new IRBuffer())
+        throw new Exception("Cannot translate expression -> " ++ expr.toString)
     result match
       case stackLocation: StackLocation => AccumulatorLocation(stackLocation.toGetThere)
       case accumulatorLocation: AccumulatorLocation => accumulatorLocation

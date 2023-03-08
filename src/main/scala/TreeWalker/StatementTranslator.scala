@@ -90,14 +90,17 @@ object StatementTranslator {
         val commandsToLoadReturn = value match
           case None => Nil
           case Some(value) => toAccumulator(value, scope)
-        throw new Exception("Fix")
         //So, transfer A to Y so you save the return. Load stack to A, then add this offset to return
         //Set the stack again, transfer Y back to A, then return.
         //Later we can look into the optimisation to keeping return in y because that may be faster if
         //its added to the stack later
         //Not for now though, keep a note of that for later in obsidian
-        val commandsToResetStackAndReturn =
-          IR.Load(Immediate(scope.offsetToReturnAddress), XReg()) :: IR.TransferXTo(StackPointerReg()) ::
+        //TODO maybe check how long just plx'ing would be, because that could be less cycles
+        val commandsToResetStackAndReturn = if(scope.offsetToReturnAddress > 0)
+            IR.TransferToY(AReg()) :: IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() ::
+            IR.AddCarry(Immediate(scope.offsetToReturnAddress)) :: IR.TransferAccumulatorTo(StackPointerReg()) ::
+            IR.TransferToAccumulator(YReg()) :: IR.ReturnLong() :: Nil
+        else
             IR.ReturnLong() :: Nil
 
         commandsToLoadReturn ::: commandsToResetStackAndReturn

@@ -1,5 +1,4 @@
 package Grain
-import TreeWalker.GlobalData
 import Utility.{Errors, Token, Type, Word, getTypeSize}
 
 import scala.collection.mutable.*
@@ -25,6 +24,7 @@ object Symbol{
   case class FunctionDefinition() extends SymbolForm
   case class Argument() extends SymbolForm with StackStored(0)
   case class Variable() extends SymbolForm with StackStored(0)
+  case class Data(labelName: String) extends SymbolForm
 }
 
 class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable){

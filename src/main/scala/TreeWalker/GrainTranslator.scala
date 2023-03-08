@@ -10,6 +10,7 @@ object GrainTranslator {
   case class Nothing() extends Result
   case class FunctionCode(buffer: IRBuffer) extends Result
   case class GlobalsCode(buffer: IRBuffer) extends Result
+  case class DataCode(buffer: IRBuffer, dataSize : Int) extends Result
 
   class IRAccumulator{
     private val globalVariableInitalisation = ListBuffer.empty[IR.Instruction]
@@ -27,7 +28,7 @@ object GrainTranslator {
         case null => throw new Exception("Not exhaustive on results")
 
     def get: List[IR.Instruction] =
-      globalVariableInitalisation.toList ::: functionCode.toList
+      globalVariableInitalisation.toList ::: (IR.JumpLongWithoutReturn(Label("main_function")) :: IR.Spacing() :: Nil) ::: functionCode.toList
   }
 
   private def translate(topLevel: TopLevel, scope: GlobalScope): Result =
@@ -38,7 +39,10 @@ object GrainTranslator {
       case FunctionDecl(funcSymbol, _, body) =>
         val functionScope = scope.getChild(topLevel).getChild(body)
         val tFuncScope = TranslatorScope(functionScope)
-        val funcLabel = "func_" ++ funcSymbol.name ++ "_l" ++ funcSymbol.lineNumber.toString
+        var funcLabel = "func_" ++ funcSymbol.name ++ "_l" ++ funcSymbol.lineNumber.toString
+        if(funcSymbol.name == "main"){
+          funcLabel = "main_function"
+        }
         //Add an extra return in case you reach the bottom
         //Will cause errors if it is expecting a value, so
         //lets hope that doesn't happen
@@ -54,7 +58,16 @@ object GrainTranslator {
           )
 
         FunctionCode(functionBody)
-      case _ => throw new Exception("Not done yet")
+      case Load(varName, palleteName, filename, references) =>
+        val graphicsData = Tool.ImageLoader(filename.lexeme)
+        //Need to also mess with the other palettes
+        DataCode(IRBuffer().append(IR.UserData(graphicsData.paletteStrings)), 0)
+        //Aight; I think that the symbol form should hold more
+        //Such as the size and bank number
+        //This will help when the symbol table injection is done
+        //Meaning when the LOAD is parsed you do the conversion then and
+        //turn the ConversionErrors into SyntaxErrors
+      case _ => throw new Exception("Not done yet -> " ++ topLevel.toString)
 
   def apply(statements: List[TopLevel], scope: GlobalScope): List[IR.Instruction] = {
     statements

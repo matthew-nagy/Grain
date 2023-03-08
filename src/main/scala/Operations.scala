@@ -116,6 +116,11 @@ package Expr:
           case _ => Grouping(optimised)
       case _ => expr
 
+  def OptimiseExpression(expr: Option[Expr]): Option[Expr] =
+    expr match
+      case None => None
+      case Some(e) => Some(OptimiseExpression(e))
+
   def OptimiseBinaryExpression(expr: BinaryOp): Expr =
     val BinaryOp(op, left, right) = expr
     val treeOptimisedExpr = BinaryOp(op, OptimiseExpression(left), OptimiseExpression(right))

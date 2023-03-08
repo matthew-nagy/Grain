@@ -7,7 +7,7 @@ load backgroundSprites, backgroundPalettes from  "data/backgroundSprites.png"
 
 
 load playerSprites, playerPalettes from "data/playerSprites.png"
-	referencing "data/paletteComparison.png" and playerSprites[1]
+	referencing "data/paletteComparison.png" for tile 1
 
 //level1Data is an array of ptrs into the ROM
 load level1Data from "data/level1.Background 1.csv" and "data/level1.Background 2.csv"

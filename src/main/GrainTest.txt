@@ -16,6 +16,8 @@ func frame(){
 
 playerXPosition: word = 64
 
+load playerSprites, playerPalettes from "littleGuy.png"
+
 func main(){
     playing: bool = true
 
@@ -26,7 +28,7 @@ func main(){
             if (inputByte and 1) > 0 then
                 playerXPosition = playerXPosition + 1
             else if (inputByte and 2) > 0 then
-                playerXPosition = playerXPosition - 1
+                playerXPosition = 1 - playerXPosition
         }
         frame()
     }

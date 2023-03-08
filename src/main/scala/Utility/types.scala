@@ -2,10 +2,13 @@ package Utility
 
 import Grain.*
 
+type Bitdepth = 2 | 4 | 8
+
 sealed trait Type
 case class Empty() extends Type
 case class Word() extends Type
 case class SpriteSheet() extends Type
+case class PaletteList() extends Type
 case class BooleanType() extends Type
 case class StringLiteral() extends Type
 case class Ptr(to: Type) extends Type
@@ -41,7 +44,8 @@ def getTypeSize(dataType: Type):Int = {
   dataType match
     case Empty() => 0
     case Word() => 2
-    case SpriteSheet() => 2
+    case SpriteSheet() => 0
+    case PaletteList() => 0
     case BooleanType() => 2
     case Ptr(_) => 2
     case Array(of, length) => getTypeSize(of) * length

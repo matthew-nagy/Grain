@@ -140,3 +140,5 @@ package IR:
   case class PutLabel(labelName: Label) extends Misc
   case class UserAssembly(code: List[String]) extends Misc
   case class Spacing() extends Misc
+  case class Bank(bankName: Int) extends Misc
+  case class UserData(dataName: String, data: List[String]) extends Misc

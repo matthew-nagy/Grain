@@ -130,6 +130,7 @@ object TopLevelParser{
     returnTypeOrError{
       val top = tokenBuffer.peekType match
         case TokenType.Func => parseFunction(scope, tokenBuffer)
+        case TokenType.Load => parseLoad(scope, tokenBuffer)
         case _ =>
           if tokenBuffer.lookAhead(1).tokenType == TokenType.Colon then
             StatementParser.parseVariableDecl(scope, tokenBuffer, true)
@@ -182,6 +183,34 @@ object TopLevelParser{
       scope.linkStatementWithScope(funcStmt, functionScope)
       funcStmt
     }
+  }
+
+  private def parseReferencing(tokenBuffer: TokenBuffer): List[Stmt.PaletteReference] = {
+    tokenBuffer.peekType match
+      case TokenType.Referencing =>
+        tokenBuffer.advance()
+        val referenceImageFilename = tokenBuffer.matchType(TokenType.StringLiteral)
+        tokenBuffer.matchType(TokenType.For)
+        tokenBuffer.matchType(TokenType.Tile)
+        val referenceIndex = tokenBuffer.matchType(TokenType.IntLiteral)
+
+        Stmt.PaletteReference(referenceImageFilename.lexeme, referenceIndex.lexeme.toInt) :: parseReferencing(tokenBuffer)
+      case _ => Nil
+  }
+  private def parseLoad(scope: GlobalScope, tokenBuffer: TokenBuffer): Stmt.TopLevel = {
+    tokenBuffer.matchType(TokenType.Load)
+    val spriteToken = tokenBuffer.matchType(TokenType.Identifier)
+    tokenBuffer.matchType(TokenType.Comma)
+    val paletteToken = tokenBuffer.matchType(TokenType.Identifier)
+    tokenBuffer.matchType(TokenType.From)
+    val mainFilename = tokenBuffer.matchType(TokenType.StringLiteral)
+
+    val references = parseReferencing(tokenBuffer)
+
+    scope.addSymbol(spriteToken, Utility.SpriteSheet(), Symbol.Data(spriteToken.lexeme))
+    scope.addSymbol(paletteToken, Utility.PaletteList(), Symbol.Data(paletteToken.lexeme))
+
+    Stmt.Load(spriteToken, paletteToken, mainFilename, references)
   }
 }
 
