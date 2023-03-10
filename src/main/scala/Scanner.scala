@@ -147,7 +147,9 @@ object Scanner{
       while(!charBank.atEndOfFile) {
         val tokenLineNumber = charBank.getCurrentLine + 1
         val tType = scanToken()
-        tokens = tokens :+ new Token(tType, charBank.getSubstring, tokenLineNumber)
+        val subStr = charBank.getSubstring
+        val newToken = new Token(tType, if(tType == TokenType.StringLiteral) subStr.tail.init else subStr, tokenLineNumber)
+        tokens = tokens :+ newToken
       }
 
       tokens = tokens :+ new Token(TokenType.EndOfFile, "", charBank.getCurrentLine)

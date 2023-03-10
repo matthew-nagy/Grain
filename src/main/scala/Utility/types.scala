@@ -48,7 +48,8 @@ def getTypeSize(dataType: Type):Int = {
     case PaletteList() => 0
     case BooleanType() => 2
     case Ptr(_) => 2
-    case Array(of, length) => getTypeSize(of) * length
+    case Array(of, length) =>
+      getTypeSize(of) * length
     case FunctionPtr(_, _) => 2
     case s @ Struct(_) => s.size
 }

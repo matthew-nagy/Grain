@@ -2,6 +2,7 @@ package TreeWalker
 
 import Grain.*
 import Grain.Stmt.*
+import TreeWalker.IR.Instruction
 
 import scala.collection.mutable.ListBuffer
 
@@ -10,32 +11,81 @@ object GrainTranslator {
   case class Nothing() extends Result
   case class FunctionCode(buffer: IRBuffer) extends Result
   case class GlobalsCode(buffer: IRBuffer) extends Result
-  case class DataCode(buffer: IRBuffer, dataSize : Int) extends Result
+  case class DataCode(labelName: String, data: List[String], var dataBank: Int) extends Result
 
   class IRAccumulator{
-    private val globalVariableInitalisation = ListBuffer.empty[IR.Instruction]
-    private val functionCode = ListBuffer.empty[IR.Instruction]
+    private val globalVariableInitalisation = ListBuffer.empty[IRBuffer]
+    private val functionCode = ListBuffer.empty[IRBuffer]
+    private val ROMData = ListBuffer.empty[DataCode]
 
-    def ::(result: Result): IRAccumulator =
+    def getSizeOfBufferCode(buffer: IRBuffer): Int =
+      buffer.toList.map(ir =>
+        ir match
+          case _: IR.ZeroSizeInstruction => 0
+          case _: IR.Instruction => GlobalData.snesData.generalInstructionSize
+      ).sum
+
+    private def append(result: Result): Unit =
       result match
-        case Nothing() => this
-        case FunctionCode(buffer) =>
-          for elem <- buffer.toList do functionCode.append(elem)
-          this
-        case GlobalsCode(buffer) =>
-          for elem <- buffer.toList do globalVariableInitalisation.append(elem)
-          this
+        case Nothing() => return
+        case FunctionCode(buffer) =>  functionCode.append(buffer)
+        case GlobalsCode(buffer) => globalVariableInitalisation.append(buffer)
+        case data: DataCode => ROMData.append(data)
         case null => throw new Exception("Not exhaustive on results")
 
-    def get: List[IR.Instruction] =
-      globalVariableInitalisation.toList ::: (IR.JumpLongWithoutReturn(Label("main_function")) :: IR.Spacing() :: Nil) ::: functionCode.toList
+    def ::(results: List[Result]): IRAccumulator = {
+      for result <- results do append(result)
+      this
+    }
+
+    def get: List[IR.Instruction] = {
+      var currentBank = 0
+      var currentBankSize = 0
+      val codeByteSize = GlobalData.snesData.generalInstructionSize
+
+      val unbankedBuffers: List[IRBuffer] = globalVariableInitalisation.toList :::
+        (IRBuffer().append(IR.JumpLongWithoutReturn(Label("main_function")) :: IR.Spacing() :: Nil) :: Nil) :::
+        functionCode.toList
+
+      val bankedBuffers = (
+        for buffer <- unbankedBuffers yield{
+          val codeSize = getSizeOfBufferCode(buffer)
+          val codeList = buffer.toList
+          if(currentBankSize + codeSize >= GlobalData.snesData.bankSize){//Need a new bank
+            currentBank += 1
+            currentBankSize = codeSize
+            (IR.Bank(currentBank) :: Nil) ::: codeList
+          }
+          else{
+            currentBankSize += codeSize
+            codeList
+          }
+        }
+      ).foldLeft(List.empty[IR.Instruction])((l1, l2) => l1 ::: l2)
+
+      currentBank += 1
+      var lastDatabank = -1
+      val dataBankCode = (for data <- ROMData yield{
+        val dataIR: Instruction = IR.UserData(data.labelName, data.data)
+        val targetBank = currentBank + data.dataBank
+        if(lastDatabank != targetBank){
+          lastDatabank = targetBank
+          IR.Bank(targetBank) :: dataIR :: Nil
+        }
+        else{
+          dataIR :: Nil
+        }
+      }).foldLeft(List.empty[Instruction])((l1, l2) => l1 ::: l2)
+
+      (IR.UserAssembly(GlobalData.snesData.fileStart):: Nil) ::: bankedBuffers ::: dataBankCode
+    }
   }
 
-  private def translate(topLevel: TopLevel, scope: GlobalScope): Result =
+  private def translate(topLevel: TopLevel, scope: GlobalScope): List[Result] =
     topLevel match
-      case EmptyStatement() => Nothing()
+      case EmptyStatement() => Nothing() :: Nil
       case VariableDecl(assignment) =>
-        GlobalsCode(ExpressionTranslator.getFromAccumulator(assignment, TranslatorScope(scope)).toGetThere)
+        GlobalsCode(ExpressionTranslator.getFromAccumulator(assignment, TranslatorScope(scope)).toGetThere) :: Nil
       case FunctionDecl(funcSymbol, _, body) =>
         val functionScope = scope.getChild(topLevel).getChild(body)
         val tFuncScope = TranslatorScope(functionScope)
@@ -57,16 +107,13 @@ object GrainTranslator {
             .append(IR.Spacing())
           )
 
-        FunctionCode(functionBody)
+        FunctionCode(functionBody) :: Nil
       case Load(varName, palleteName, filename, references) =>
-        val graphicsData = Tool.ImageLoader(filename.lexeme)
-        //Need to also mess with the other palettes
-        DataCode(IRBuffer().append(IR.UserData(graphicsData.paletteStrings)), 0)
-        //Aight; I think that the symbol form should hold more
-        //Such as the size and bank number
-        //This will help when the symbol table injection is done
-        //Meaning when the LOAD is parsed you do the conversion then and
-        //turn the ConversionErrors into SyntaxErrors
+        val spriteSheetForm = scope.getSymbol(varName.lexeme).form.asInstanceOf[Symbol.Data]
+        val paletteForm = scope.getSymbol(palleteName.lexeme).form.asInstanceOf[Symbol.Data]
+
+        DataCode(varName.lexeme, spriteSheetForm.values, spriteSheetForm.dataBank) :: DataCode(palleteName.lexeme, paletteForm.values, paletteForm.dataBank) :: Nil
+
       case _ => throw new Exception("Not done yet -> " ++ topLevel.toString)
 
   def apply(statements: List[TopLevel], scope: GlobalScope): List[IR.Instruction] = {
@@ -77,6 +124,10 @@ object GrainTranslator {
   }
 
   def main(args: Array[String]): Unit = {
+    val dir: String = System.getProperty("user.dir")
+    println("Running in " ++ dir)
+
+
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/GrainTest.txt"))
     val symbolTable = new SymbolTable
 

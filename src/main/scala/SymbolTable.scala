@@ -24,7 +24,7 @@ object Symbol{
   case class FunctionDefinition() extends SymbolForm
   case class Argument() extends SymbolForm with StackStored(0)
   case class Variable() extends SymbolForm with StackStored(0)
-  case class Data(labelName: String) extends SymbolForm
+  case class Data(values: List[String], var dataSize: Int, var dataBank: Int = 0) extends SymbolForm
 }
 
 class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable){
@@ -42,6 +42,9 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
   def hasChild(statement: Stmt.Statement): Boolean = children.contains(statement)
   def getChildOrThis(statement: Stmt.Statement): Scope =
     if hasChild(statement) then getChild(statement) else this
+
+  def getSymbol(symbolName: String): Symbol =
+    if(strictContains(symbolName)) symbolMap(symbolName) else parent.getSymbol(symbolName)
 
   def size: Int = frameSize
   def addToStack(form: Symbol.StackStored, symbolSize: Int) = {
@@ -102,7 +105,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
     (for symbol <- symbolMap yield symbol.toString ++ "\n").toList.toString()
   }
 
-  private def getIndexTypeOf(arrayExpr: Expr.Expr): Type = {
+  def getIndexTypeOf(arrayExpr: Expr.Expr): Type = {
     getTypeOf(arrayExpr) match
       case Utility.Ptr(to) => to
       case Utility.Array(of, _) => of
@@ -154,12 +157,49 @@ class FunctionScope(parentScope: Option[Scope], symbolTable: SymbolTable) extend
 
 class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable){
   private var globalHeapPtr: Int = 100
+  private var currentDataBank: Int = 0
+  private var currentBankSize: Int = 0
   def newFunctionChild(): FunctionScope = FunctionScope(Some(this), symbolTable)
+
+  /*
+  def addSymbol(name: Token, symbol: Symbol): Unit =
+    symbolMap.contains(name.lexeme) match
+      case false =>
+        symbol.form match {
+          case stored: Symbol.StackStored => addToStack(stored, symbol.size)
+          case glob: Symbol.GlobalVariable => addGlobal(glob, symbol.size)
+          case _ =>
+        }
+        symbolMap.addOne(name.lexeme, symbol)
+      case true => throw Errors.SymbolRedefinition(symbolMap(name.lexeme).token, name)
+
+  def addSymbol(name: Token, varType: Utility.Type, form: SymbolForm): Symbol = {
+    val symbol = Symbol.make(name, varType, form)
+    addSymbol(name, symbol)
+    symbol
+  }
+  */
+
+  def addData(name: Token, varType: Utility.Type, form: Symbol.Data): Symbol = {
+    val symbol = Symbol.make(name, varType, form)
+
+    if(currentBankSize + form.dataSize >= GlobalData.snesData.bankSize){
+      currentDataBank += 1
+      currentBankSize = 0
+    }
+
+    form.dataBank = currentDataBank
+    currentBankSize += form.dataSize
+
+    addSymbol(name, symbol)
+
+    symbol
+  }
 
   override def addToStack(form: Symbol.StackStored, symbolSize: Int) = throw new Exception("Can't add global variable to stack")
   override def addGlobal(form: Symbol.GlobalVariable, symbolSize: Int): Unit = {
     form.location = globalHeapPtr
-    globalHeapPtr += 2
+    globalHeapPtr += symbolSize
   }
 }
 

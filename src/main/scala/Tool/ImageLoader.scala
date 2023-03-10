@@ -12,6 +12,9 @@ case class LoadedImage(
                 dataStrings: List[String],
                 bpp: Utility.Bitdepth
                 ){
+  def dataSize: Int = dataStrings.length * 2
+
+  def palleteSize: Int = dataStrings.length * 2
   override def toString: String = {
     "Palette ->" ++ paletteStrings.foldLeft("")(_ ++ "\n\t" ++ _) ++ "\n\nData ->" ++ dataStrings.foldLeft("")(_ ++ "\n\t" ++ _)
   }
@@ -147,7 +150,11 @@ object ImageLoader {
     try
       ImageIO.read(new File(filename))
     catch
-        case e @ _ => throw e
+        case e @ _ =>
+          println("Error reading ->" ++ filename ++ "<-")
+          throw e
+          println("Java gave error: " ++ e.toString)
+          throw ConversionError.invalidFilename(filename)
   }
 
   def apply(filename: String): LoadedImage = {
@@ -166,6 +173,9 @@ object ImageLoader {
   }
 
   def main(args: Array[String]): Unit = {
+
+    val dir: String = System.getProperty("user.dir")
+    println("Running in " ++ dir)
     println(apply("src/main/littleGuy.png"))
   }
 }

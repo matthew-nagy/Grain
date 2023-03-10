@@ -39,6 +39,10 @@ package IR:
       this
     }
   }
+  //When compiled, certain of these 'instructions' won't actually take any ROM size, such as comments or labels
+  sealed trait ZeroSizeInstruction
+  sealed trait LargeSizeInstruction(generalByteSize: Int)
+
   sealed trait Arithmetic extends Instruction
   sealed trait LoadStore extends Instruction
   sealed trait Transfer extends Instruction
@@ -137,8 +141,8 @@ package IR:
   //Misc
   case class MovePositive(fromPage: Byte, toPage: Byte) extends Misc
   case class MoveNegative(fromPage: Byte, toPage: Byte) extends Misc
-  case class PutLabel(labelName: Label) extends Misc
+  case class PutLabel(labelName: Label) extends Misc with ZeroSizeInstruction
   case class UserAssembly(code: List[String]) extends Misc
-  case class Spacing() extends Misc
+  case class Spacing() extends Misc with ZeroSizeInstruction
   case class Bank(bankName: Int) extends Misc
   case class UserData(dataName: String, data: List[String]) extends Misc

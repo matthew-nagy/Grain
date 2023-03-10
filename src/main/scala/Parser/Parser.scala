@@ -1,7 +1,8 @@
 package Parser
 
 import Grain.*
-import Utility.{Token, SyntaxError, TokenType, Errors, Type}
+import Tool.ImageLoader
+import Utility.{Errors, SyntaxError, Token, TokenType, Type}
 
 import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
@@ -207,8 +208,10 @@ object TopLevelParser{
 
     val references = parseReferencing(tokenBuffer)
 
-    scope.addSymbol(spriteToken, Utility.SpriteSheet(), Symbol.Data(spriteToken.lexeme))
-    scope.addSymbol(paletteToken, Utility.PaletteList(), Symbol.Data(paletteToken.lexeme))
+    val loadedImage = ImageLoader(mainFilename.lexeme)
+
+    scope.addSymbol(spriteToken, Utility.SpriteSheet(), Symbol.Data(loadedImage.dataStrings, loadedImage.dataSize))
+    scope.addSymbol(paletteToken, Utility.PaletteList(), Symbol.Data(loadedImage.paletteStrings, loadedImage.palleteSize))
 
     Stmt.Load(spriteToken, paletteToken, mainFilename, references)
   }

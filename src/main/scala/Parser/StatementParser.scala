@@ -42,7 +42,7 @@ object StatementParser {
     tokenBuffer.matchType(TokenType.LeftBrace)
     val assemblyContent = ListBuffer.empty[String]
     while(tokenBuffer.peekType == TokenType.StringLiteral){
-      assemblyContent.append(tokenBuffer.advance().lexeme.tail.init)
+      assemblyContent.append(tokenBuffer.advance().lexeme)
     }
     tokenBuffer.matchType(TokenType.RightBrace)
     Stmt.Assembly(assemblyContent.toList)

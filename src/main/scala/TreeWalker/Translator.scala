@@ -162,6 +162,8 @@ object Translator {
       case PutLabel(labelName: Label) => labelName.name ++ ":"
       case UserAssembly(code) => code.foldLeft(";User Assembly")(_ ++ "\n" ++ _) ++ "\n;End Assembly"
       case Spacing() => "\n;---------------\n"
+      case Bank(bankName) => ".bank " ++ bankName.toString
+      case UserData(dataName, data) => dataName ++ data.foldLeft(":")(_ ++ "\n\t" ++ _)
   }
 
   private def translatedIR(instruction: IR.Instruction): String =

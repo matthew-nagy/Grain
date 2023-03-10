@@ -2,10 +2,10 @@ func getInputByte():word{
     asm{
         "lda #%10000001     ; Set NMI enable bit and joypad"
          "sta $4200"
-         "WaitForInput:"
+         "WaitForUserInput:"
          "lda $4212"
          "and #1"
-         "bne WaitForInput   ;Wait for input unless we have the input"
+         "bne WaitForUserInput   ;Wait for input unless we have the input"
          "lda $4219          ;Load input into the accumulator then return (compiler adds it)"
     }
 }
@@ -15,11 +15,23 @@ func frame(){
 }
 
 playerXPosition: word = 64
+buffer: word[10]
 
-load playerSprites, playerPalettes from "littleGuy.png"
+load playerSprites, playerPalettes from "src/main/littleGuy.png"
+
+globDat: word[20]
+globDat2: word[20]
 
 func main(){
     playing: bool = true
+
+    for i:word = 0; i < 20; i = i + 1 do
+        globDat[i] = i
+
+    for i:word = 0; i < 20; i = i + 1 do{
+        mid:word = globDat[i]
+        globDat2[i] = mid + mid
+    }
 
     while playing do{
         inputByte: word = getInputByte()
