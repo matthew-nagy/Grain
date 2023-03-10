@@ -24,7 +24,8 @@ object GlobalData {
       ".bank 0",
       ".org $0",
       "Start:",
-      "Snes_Init"
+      "Snes_Init",
+      "rep #$30"
     )
   }
 }
