@@ -17,7 +17,7 @@ func frame(){
 playerXPosition: word = 64
 buffer: word[10]
 
-load playerSprites, playerPalettes from "src/main/littleGuy.png"
+//load playerSprites, playerPalettes from "src/main/littleGuy.png"
 
 globDat: word[20]
 globDat2: word[20]

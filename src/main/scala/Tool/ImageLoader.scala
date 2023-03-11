@@ -10,7 +10,9 @@ case class LoadedImage(
                 originalPalette: Map[Int, Byte],
                 paletteStrings: List[String],
                 dataStrings: List[String],
-                bpp: Utility.Bitdepth
+                bpp: Utility.Bitdepth,
+                numberOfTiles: Int,
+                numberOfPalettes: Int
                 ){
   def dataSize: Int = dataStrings.length * 2
 
@@ -74,6 +76,7 @@ class ImageLoader(image: BufferedImage, filename: String) {
       bppIterations -= 1
       shifter += 2
     }
+    buffer.append("\n");
     buffer.toList
   }
 
@@ -113,7 +116,9 @@ class ImageLoader(image: BufferedImage, filename: String) {
 
   def toLoadedImage(): LoadedImage = {
     val dataString = toDataString
-    LoadedImage(image, palette.toMap, getPaletteString, dataString, getBpp)
+    val numberOfPalletes = 1 //Do stuff with this later
+    val numberOfTiles = (image.getWidth() / 8) * (image.getHeight() / 8) //change later if sprite size changes
+    LoadedImage(image, palette.toMap, getPaletteString, dataString, getBpp, numberOfTiles, numberOfPalletes)
   }
 }
 object ImageLoader {

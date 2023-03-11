@@ -138,6 +138,9 @@ package IR:
   case class PushValue(value: Immediate) extends StackManipulation
   case class PushAddress(address: Address) extends StackManipulation
 
+  case class PushDummyValue(reg: TargetReg) extends StackManipulation
+  case class PopDummyValue(reg: TargetReg) extends StackManipulation
+
   //Misc
   case class MovePositive(fromPage: Byte, toPage: Byte) extends Misc
   case class MoveNegative(fromPage: Byte, toPage: Byte) extends Misc

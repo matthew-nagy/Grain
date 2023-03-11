@@ -132,22 +132,30 @@ object GrainTranslator {
     val symbolTable = new SymbolTable
 
     val topLevels = ListBuffer.empty[Stmt.TopLevel]
+    var hadErrors = false
 
     while (tokenBuffer.peekType != Utility.TokenType.EndOfFile) {
       val result = Parser.TopLevelParser(symbolTable.globalScope, tokenBuffer)
       for s <- result.statements do {
-        println(s)
         topLevels.append(s)
       }
       result.errors.map(println)
+      hadErrors |= result.errors.nonEmpty
     }
 
-    val generatedIr = apply(topLevels.toList, symbolTable.globalScope)
+    if(hadErrors){
+      return
+    }
 
-    println(generatedIr)
+    var generatedIr = apply(topLevels.toList, symbolTable.globalScope)
+    generatedIr = Optimise.registerUsage(generatedIr)
+    generatedIr = Optimise.stackUsage(generatedIr)
+    generatedIr = Optimise.directAddresses(generatedIr)
 
-    val assembly = generatedIr.toList.map(Translator(_)).foldLeft("")(_ ++ "\n" ++ _)
-
-    println(assembly)
+//    val assembly = generatedIr.map(Translator(_)).foldLeft("")(_ ++ "\n" ++ _)
+//
+//    println(assembly)
+    generatedIr.map(i => println(i.toString))
+    println("IR was length " ++ generatedIr.length.toString)
   }
 }

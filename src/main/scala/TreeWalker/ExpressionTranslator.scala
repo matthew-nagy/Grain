@@ -82,7 +82,7 @@ object ExpressionTranslator {
         scope.push()
         buffer
           .append(getIndexToReg(by, scope, scope.inner.getIndexTypeOf(of), AReg()))
-          .append(IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopRegister(XReg()) :: Nil)
+          .append(IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil)
         scope.pop()
         buffer
       case _ => throw new Exception("Cannot get address of expresstion -> " ++ expr.toString)
@@ -159,7 +159,7 @@ object ExpressionTranslator {
         val loadArrayLocToStack = getNumericalAddressInA(of, scope).append(IR.PushRegister(AReg()))
         scope.push()
         val loadIndexToY = getIndexToReg(by, scope, scope.inner.getIndexTypeOf(of), YReg())
-        val getValueToA = IR.Load(StackRelativeIndirectIndexed(2, YReg()) ,AReg()) :: IR.PopRegister(XReg()) :: Nil
+        val getValueToA = IR.Load(StackRelativeIndirectIndexed(2, YReg()) ,AReg()) :: IR.PopDummyValue(XReg()) :: Nil
         scope.pop()
         AccumulatorLocation(
           loadArrayLocToStack.append(loadIndexToY).append(getValueToA)

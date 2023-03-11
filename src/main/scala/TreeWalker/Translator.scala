@@ -154,6 +154,8 @@ object Translator {
       case PullProcessorStatus() => "plp"
       case PushValue(immediate) => smpl("pea", immediate)
       case PushAddress(address) => smpl("pei", address)
+      case PushDummyValue(reg) => "ph" ++ getReg(reg) ++ "\t;Dummy push"
+      case PopDummyValue(reg) => "pl" ++ getReg(reg) ++ "\t;Dummy pull"
   }
   private def misc(m: Misc): String = {
     m match

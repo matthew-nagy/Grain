@@ -210,8 +210,8 @@ object TopLevelParser{
 
     val loadedImage = ImageLoader(mainFilename.lexeme)
 
-    scope.addSymbol(spriteToken, Utility.SpriteSheet(), Symbol.Data(loadedImage.dataStrings, loadedImage.dataSize))
-    scope.addSymbol(paletteToken, Utility.PaletteList(), Symbol.Data(loadedImage.paletteStrings, loadedImage.palleteSize))
+    scope.addSymbol(spriteToken, Utility.SpriteSheet(loadedImage.bpp), Symbol.Data(loadedImage.dataStrings, loadedImage.dataSize))
+    scope.addSymbol(paletteToken, Utility.Palette(), Symbol.Data(loadedImage.paletteStrings, loadedImage.palleteSize))
 
     Stmt.Load(spriteToken, paletteToken, mainFilename, references)
   }

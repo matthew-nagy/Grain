@@ -91,6 +91,17 @@ object Scanner{
             case _ => //Regular number
               while (Token.isNumericChar(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
               TokenType.IntLiteral
+        case p @ _ if Utility.bitdepthLiteralStrings.exists(_.head == p) =>
+          if(charBank.peek != 'b' && charBank.getCurrentLine == startLine){
+            while (Token.isNumericChar(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
+            TokenType.IntLiteral
+          }
+          else {
+            val b = charBank.advance()
+            val p1 = charBank.advance()
+            val p2 = charBank.advance()
+            if (b == 'b' && p1 == p2 && p1 == 'p') then TokenType.BitdepthLiteral else TokenType.ErrorToken
+          }
         case _ =>
           while (Token.isNumericChar(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
           TokenType.IntLiteral

@@ -11,7 +11,7 @@ enum TokenType:
   //Literals
        Identifier, IntLiteral, StringLiteral,
   //Built-in Types
-       Ptr,
+       Ptr, BitdepthLiteral, RamGateLiteral,
   //Keywords
        Abs, Assembly, Break, Case, Decrement, Do, Else, False, From, Func, For, If,
        Include, Increment, Load, Match, Null, Referencing, Return, Tile, True,
