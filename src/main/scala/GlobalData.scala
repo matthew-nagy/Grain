@@ -4,6 +4,7 @@ object GlobalData {
   object Addresses {
     val logicalNotAddress = 0
     val tempStack = 2
+    val dmaFlags = 4
 
     val signedMultiplyMultiplicand = 0x211b
     val signedMultiplyMultiplier = 0x221c
@@ -12,6 +13,10 @@ object GlobalData {
   
   object optimisationFlags{
     val staticOptimiseTree = true
+    val stackPressureOptimisations = false
+    val optimiseStackUsage = true
+    val optimiseRegisterUsage = true
+    val optimiseDirectAddresses = true
   }
 
   object snesData{

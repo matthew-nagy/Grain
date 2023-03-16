@@ -35,6 +35,7 @@ package Stmt:
       case Assembly(_) => stmt
       case Block(statements) => Block(statements.map(OptimiseStatement))
       case Expression(expr) => Expression(Expr.OptimiseExpression(expr))
+      case EmptyStatement() => EmptyStatement()
       case For(ss, be, ie, b, lineNumber) =>
         val optimisedBreakExpression = Expr.OptimiseExpression(be)
         if(optimisedBreakExpression.isDefined){

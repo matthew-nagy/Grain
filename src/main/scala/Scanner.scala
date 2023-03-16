@@ -92,7 +92,7 @@ object Scanner{
               while (Token.isNumericChar(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
               TokenType.IntLiteral
         case p @ _ if Utility.bitdepthLiteralStrings.exists(_.head == p) =>
-          if(charBank.peek != 'b' && charBank.getCurrentLine == startLine){
+          if(charBank.peek != 'b' || charBank.getCurrentLine != startLine){
             while (Token.isNumericChar(charBank.peek) && charBank.getCurrentLine == startLine) charBank.advance()
             TokenType.IntLiteral
           }
@@ -140,7 +140,8 @@ object Scanner{
               charBank.advance()
               head.token
             case Nil => doubleTokenEntry.otherwise
-        case x if Token.isNumericChar(x) => scanNumericLiteral(startLine, x)
+        case x if Token.isNumericChar(x) =>
+          scanNumericLiteral(startLine, x)
         case '"' => scanStringLiteral(startLine)
         case x if Token.isValidAlphabetChar(x) => scanIdentifier(startLine)
         case ' ' => scanToken()

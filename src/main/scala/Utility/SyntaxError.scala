@@ -55,6 +55,11 @@ object Errors{
       badToken.lineNumber,
       "Symbol '" ++ badToken.lexeme ++ "' not found"
     )
+  def CannotHaveArrayArgument(badToken: Token): SyntaxError =
+    SyntaxError(
+      badToken.lineNumber,
+      "Cannot have a pure array type as an argument. Please use pointers"
+    )
 
   def SymbolRedefinition(oldToken: Token, newToken: Token): SyntaxError =
     SyntaxError(

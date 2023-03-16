@@ -62,6 +62,10 @@ package Operation:
       Binary.And, Binary.Or, Binary.Xor
     )
 
+    val orderImportantOperations: Set[Operation.Binary] = Set(
+      Operation.Binary.Subtract, Operation.Binary.ShiftLeft, Operation.Binary.ShiftRight, Operation.Binary.Divide
+    )
+    
     val oppositeMap: Map[Binary, Binary] = Map(
       Binary.Less -> Binary.GreaterEqual, Binary.Greater -> Binary.LessEqual, Binary.Equal -> Binary.NotEqual,
       Binary.GreaterEqual -> Binary.Less, Binary.LessEqual -> Binary.Greater, Binary.NotEqual -> Binary.Equal
@@ -121,6 +125,7 @@ package Expr:
       case None => None
       case Some(e) => Some(OptimiseExpression(e))
 
+  //TODO recognise powers to 2 and not just 2 on its own for some of these
   def OptimiseBinaryExpression(expr: BinaryOp): Expr =
     val BinaryOp(op, left, right) = expr
     val treeOptimisedExpr = BinaryOp(op, OptimiseExpression(left), OptimiseExpression(right))
@@ -134,8 +139,8 @@ package Expr:
     treeOptimisedExpr match
       case BinaryOp(op, NumericalLiteral(val1), NumericalLiteral(val2)) =>
         NumericalLiteral(Operation.applyOperation(op, val1, val2))
-      case BinaryOp(BOp.Add, x, y) if x == y => BinaryOp(BOp.ShiftLeft, x, NumericalLiteral(2))
-
+      case BinaryOp(BOp.Add, x, y) if x == y => BinaryOp(BOp.ShiftLeft, x, NumericalLiteral(1))
+      case BinaryOp(BOp.Subtract, x, y) if x == y => BinaryOp(BOp.ShiftRight, x, NumericalLiteral(1))
       case BinaryOp(BOp.Multiply, x, NumericalLiteral(2)) => BinaryOp(BOp.ShiftLeft, x, NumericalLiteral(2))
       case BinaryOp(BOp.Multiply, NumericalLiteral(2), x) => BinaryOp(BOp.ShiftLeft, x, NumericalLiteral(2))
 

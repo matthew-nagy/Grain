@@ -59,9 +59,18 @@ class TranslatorScope(private val innerScope: Scope) {
   def getAddress(varName: String): Address = {
     getSymbol(varName).form match
       case _: Symbol.Variable => getStackAddress(varName)
-      case _: Symbol.Argument => StackRelative(getStackOffset(varName) + 3)
+      case _: Symbol.Argument => StackRelative(getStackOffset(varName) + 5)
       case _: Symbol.FunctionDefinition => throw new Exception("Can't get the location of a function (I guess?)")
       case glob: Symbol.GlobalVariable => Direct(glob.location)
+  }
+
+  def getStackFrameOffset: Int = {
+    if(inner.parent.isInstanceOf[GlobalScope]){//This is the argument scope
+      2 //Because stack relative loses 1 later
+    }
+    else{
+      inner.size + getParent.getStackFrameOffset
+    }
   }
 
   private def getStackAddress(varName: String): Address = StackRelative(getStackOffset(varName))

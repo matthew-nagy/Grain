@@ -62,9 +62,8 @@ object StatementParser {
     blockStmt
   }
 
-  private def parseExpression(scope: Scope, tokenBuffer: TokenBuffer): Stmt.Expression = {
+  private def parseExpression(scope: Scope, tokenBuffer: TokenBuffer): Stmt.Expression =
     Stmt.Expression(ExpressionParser.parseOrThrow(scope, tokenBuffer))
-  }
 
   private def parseFor(scope: Scope, tokenBuffer: TokenBuffer): Stmt.For = {
     val forScope = scope.newChild()
@@ -167,17 +166,17 @@ object StatementParser {
       case FunctionDecl(_, _, body) => typeCheck(body, scope.getChildOrThis(statement))
       case Else(_) => throw Exception("Else branch shouldn't be triggered; handle in the if")
       case If(condition, body, elseBranch, _) =>
-        val ifOk = scope.getTypeOf(condition) == Utility.BooleanType() && ExpressionParser.typeCheck(condition, scope) &&
+        val ifOk = Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType()) && ExpressionParser.typeCheck(condition, scope) &&
           typeCheck(body, scope.getChildOrThis(statement))
         elseBranch match
           case None => ifOk
           case Some(elseStmt) => ifOk && typeCheck(elseStmt.body, scope.getChildOrThis(elseStmt))
-      case Return(Some(expr)) => ExpressionParser.typeCheck(expr, scope) && (scope.getTypeOf(expr) == scope.getReturnType)
+      case Return(Some(expr)) => ExpressionParser.typeCheck(expr, scope) && Utility.typeEquivilent(scope.getTypeOf(expr), scope.getReturnType)
       case Return(None) => true
       case VariableDecl(Expr.Assign(name, initializer)) =>
-        ExpressionParser.typeCheck(initializer, scope) && scope(name.lexeme).dataType == scope.getTypeOf(initializer)
+        ExpressionParser.typeCheck(initializer, scope) && Utility.typeEquivilent(scope(name.lexeme).dataType, scope.getTypeOf(initializer))
       case While(condition, body, _) =>
-        ExpressionParser.typeCheck(condition, scope) && scope.getTypeOf(condition) == Utility.BooleanType() && typeCheck(body, scope.getChildOrThis(statement))
+        ExpressionParser.typeCheck(condition, scope) && Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType()) && typeCheck(body, scope.getChildOrThis(statement))
       case a @ _ =>
         println(a.toString ++ " hasn't been handled yet")
         true

@@ -14,16 +14,38 @@ object ExpressionParser {
       case error: SyntaxError => throw error
       case expr: Expr.Expr => expr
 
-  private def parseExpression(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr | SyntaxError =
+  //Because of how the translator works, some ops need the branches the other way round
+  private def swapArithmeticBranches(expr: Expr.Expr): Expr.Expr = {
+    expr match
+      case Expr.Assign(name, arg) => Expr.Assign(name, swapArithmeticBranches(arg))
+      case Expr.UnaryOp(op, arg) => Expr.UnaryOp(op, swapArithmeticBranches(arg))
+      case Expr.BinaryOp(op, left, right) =>
+        if(Operation.Groups.orderImportantOperations.contains(op))
+          Expr.BinaryOp(op, right, left)
+        else expr
+      case Expr.Indirection(expr) => Expr.Indirection(swapArithmeticBranches(expr))
+      case Expr.FunctionCall(function, arguments) =>
+        Expr.FunctionCall(swapArithmeticBranches(function), arguments.map(swapArithmeticBranches))
+      case Expr.Get(left, name) => Expr.Get(swapArithmeticBranches(left), name)
+      case Expr.GetAddress(expr) => Expr.GetAddress(swapArithmeticBranches(expr))
+      case Expr.GetIndex(of, by) => Expr.GetIndex(swapArithmeticBranches(of), swapArithmeticBranches(by))
+      case Expr.Set(left, right) => Expr.Set(swapArithmeticBranches(left), swapArithmeticBranches(right))
+      case Expr.SetIndex(of, to) => Expr.SetIndex(swapArithmeticBranches(of), swapArithmeticBranches(to))
+      case Expr.Grouping(internalExpr) => Expr.Grouping(swapArithmeticBranches(internalExpr))
+      case _ => expr
+  }
+
+
+  private def parseExpression(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr | SyntaxError = {
     returnTypeOrError {
-      parseAssignment(scope, tokenBuffer)
+      val expr = parseAssignment(scope, tokenBuffer)
+      swapArithmeticBranches(expr)
     }
+  }
 
   private def parseAssignment(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
     val token = tokenBuffer.peek
     val expr = parseLogical(scope, tokenBuffer)
-
-    //println(tokenBuffer.peekType.toString)
 
     if(tokenBuffer.peekType == TokenType.Equal) {
       tokenBuffer.advance()
@@ -43,7 +65,8 @@ object ExpressionParser {
 
     while(
       tokenBuffer.peekType == TokenType.Or ||
-        tokenBuffer.peekType == TokenType.And
+        tokenBuffer.peekType == TokenType.And ||
+        tokenBuffer.peekType == TokenType.Xor
     ){
       val tokenType = tokenBuffer.advance().tokenType
       val op = if(tokenType == TokenType.Or)
@@ -182,12 +205,42 @@ object ExpressionParser {
 
     expr
   }
+
+  private def hexDigit(digit: Char): Int = {
+    val digitMap: Map[Char, Int] = Range(0, 10).map(v => v.toString()(0) -> v).toMap[Char, Int] ++
+      Map[Char, Int]('A' -> 10, 'B' -> 11, 'C' -> 12, 'D' -> 13, 'E' -> 14, 'F' -> 15)
+    digitMap(digit)
+  }
+  private def parseIntValue(int: String): Int = {
+    if(int.length < 3 || int(0) != '0'){
+      Integer.parseInt(int)
+    }
+    else{
+      int(1) match
+        case 'b' =>
+          var value = 0
+          for i <- Range(2, int.length) do{
+            value <<= 1
+            value |= (if(int(i) == '1') 1 else 0)
+          }
+          value
+        case 'x' =>
+          var value = 0
+          for i <- Range(2, int.length) do {
+            value <<= 4
+            value |= hexDigit(int(i).toUpper)
+          }
+          value
+        case _ => Integer.parseInt(int)
+    }
+  }
+
   private def parsePrimary(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
     val token = tokenBuffer.advance()
     token.tokenType match
       case TokenType.False => Expr.BooleanLiteral(false)
       case TokenType.True => Expr.BooleanLiteral(true)
-      case TokenType.IntLiteral => Expr.NumericalLiteral(Integer.parseInt(token.lexeme))
+      case TokenType.IntLiteral => Expr.NumericalLiteral(parseIntValue(token.lexeme))
       case TokenType.StringLiteral => Expr.StringLiteral(token.lexeme)
       case TokenType.LeftParen =>
         val nextExpression = parseExpression(scope, tokenBuffer)
@@ -218,16 +271,16 @@ object ExpressionParser {
 
     expr match
       case Assign(varToken, arg) =>
-        typeCheck(arg, scope) && scope(varToken.lexeme).dataType == scope.getTypeOf(arg)
+        typeCheck(arg, scope) && Utility.typeEquivilent(scope(varToken.lexeme).dataType, scope.getTypeOf(arg))
       case BooleanLiteral(_) => true
       case UnaryOp(op, arg) =>
         typeCheck(arg, scope) && typeCheckUnary(op, scope.getTypeOf(arg))
       case BinaryOp(op, left, right) =>
         typeCheck(left, scope) && typeCheck(right, scope) && (op match
           case _ if Operation.Groups.LogicalTokens.contains(op) || Operation.Groups.RelationalTokens.contains(op) =>
-            scope.getTypeOf(left) == scope.getTypeOf(right)
+            Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))
           case _ if Operation.Groups.ArithmeticTokens.contains(op) =>
-            scope.getTypeOf(left) == Utility.Word() && scope.getTypeOf(right) == Utility.Word()
+            Utility.typeEquivilent(scope.getTypeOf(left), Utility.Word()) && Utility.typeEquivilent(scope.getTypeOf(right), Utility.Word())
           case _ => throw Exception("Ungrouped binary operation")
         )
       case NumericalLiteral(_) => true
@@ -239,7 +292,7 @@ object ExpressionParser {
         val functionType = scope.getTypeOf(function)
         functionType match
           case Utility.FunctionPtr(argTypes, _) =>
-            argTypes.zip(arguments.map(scope.getTypeOf)).forall(_ == _) && arguments.forall(typeCheck(_, scope))
+            argTypes.zip(arguments.map(scope.getTypeOf)).forall((expectedT, givenT) => Utility.typeEquivilent(expectedT, givenT)) && arguments.forall(typeCheck(_, scope))
           case _ => false
       case Get(left, name) =>
         val leftType = scope.getTypeOf(left)
@@ -253,12 +306,11 @@ object ExpressionParser {
         (of.isInstanceOf[Variable] || of.isInstanceOf[Get] || of.isInstanceOf[GetIndex]) && typeCheck(of, scope)
       case GetIndex(of, by) =>
         val ofType = scope.getTypeOf(of)
-        typeCheck(of, scope) && typeCheck(by, scope) && scope.getTypeOf(by) == Utility.Word() &&
-          (ofType.isInstanceOf[Utility.Array] || ofType.isInstanceOf[Utility.Ptr])
+        typeCheck(of, scope) && typeCheck(by, scope) && Utility.typeEquivilent(scope.getTypeOf(by), Utility.Word()) && ofType.isInstanceOf[Utility.PtrType]
       case Set(left, right) =>
-        scope.getTypeOf(left) == scope.getTypeOf(right) && typeCheck(left, scope) && typeCheck(right, scope)
+        Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right)) && typeCheck(left, scope) && typeCheck(right, scope)
       case SetIndex(left, right) =>
-        scope.getTypeOf(left) == scope.getTypeOf(right) && typeCheck(left, scope) && typeCheck(right, scope)
+        Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right)) && typeCheck(left, scope) && typeCheck(right, scope)
       case Grouping(internalExpr) => typeCheck(internalExpr, scope)
       case null => true
   }

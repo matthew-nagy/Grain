@@ -151,7 +151,11 @@ object TopLevelParser{
         tokenBuffer.matchType(TokenType.Comma)
       val argName = tokenBuffer.matchType(TokenType.Identifier)
       tokenBuffer.matchType(TokenType.Colon)
+      val typeToken = tokenBuffer.peek
       val argType = parseType(scope.symbolTable, tokenBuffer)
+      if(argType.isInstanceOf[Utility.Array]){
+        throw Errors.CannotHaveArrayArgument(typeToken)
+      }
       arguments.append(scope.addSymbol(argName, argType, Symbol.Argument()))
     }
     tokenBuffer.matchType(TokenType.RightParen)

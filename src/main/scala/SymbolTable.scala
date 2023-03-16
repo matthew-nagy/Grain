@@ -105,16 +105,6 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
     (for symbol <- symbolMap yield symbol.toString ++ "\n").toList.toString()
   }
 
-  def getIndexTypeOf(arrayExpr: Expr.Expr): Type = {
-    getTypeOf(arrayExpr) match
-      case Utility.Ptr(to) => to
-      case Utility.Array(of, _) => of
-      case _ =>
-        println(arrayExpr.toString)
-        println(getTypeOf(arrayExpr).toString)
-        throw new Exception("Cannot index given type '" ++ getTypeOf(arrayExpr).toString ++ "'")
-  }
-
   def getTypeOf(expr: Expr.Expr): Type =
     expr match
       case Expr.Assign(name, _) => apply(name.lexeme).dataType
@@ -129,7 +119,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
       case Expr.NumericalLiteral(_) => Utility.Word()
       case Expr.StringLiteral(_) => Utility.StringLiteral()
       case Expr.Variable(name) => apply(name.lexeme).dataType
-      case Expr.GetIndex(arrayExpr, _) => getIndexTypeOf(arrayExpr)
+      case Expr.GetIndex(arrayExpr, _) => Utility.stripPtrType(getTypeOf(arrayExpr))
       case Expr.SetIndex(_, to) => getTypeOf(to)
       case Expr.Indirection(e) =>
         val Utility.Ptr(innerType) = getTypeOf(e)
@@ -160,25 +150,7 @@ class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable){
   private var currentDataBank: Int = 0
   private var currentBankSize: Int = 0
   def newFunctionChild(): FunctionScope = FunctionScope(Some(this), symbolTable)
-
-  /*
-  def addSymbol(name: Token, symbol: Symbol): Unit =
-    symbolMap.contains(name.lexeme) match
-      case false =>
-        symbol.form match {
-          case stored: Symbol.StackStored => addToStack(stored, symbol.size)
-          case glob: Symbol.GlobalVariable => addGlobal(glob, symbol.size)
-          case _ =>
-        }
-        symbolMap.addOne(name.lexeme, symbol)
-      case true => throw Errors.SymbolRedefinition(symbolMap(name.lexeme).token, name)
-
-  def addSymbol(name: Token, varType: Utility.Type, form: SymbolForm): Symbol = {
-    val symbol = Symbol.make(name, varType, form)
-    addSymbol(name, symbol)
-    symbol
-  }
-  */
+  
 
   def addData(name: Token, varType: Utility.Type, form: Symbol.Data): Symbol = {
     val symbol = Symbol.make(name, varType, form)

@@ -1,0 +1,72 @@
+//Lessons learnt, that old green tutorial DMA out of x thing is the *only* way this shit will work
+//DMA addresses need to be decrimented because little endian and such
+
+
+golBoard: word[1024]
+
+goTime: bool = false
+next: word = 3
+current: word = 3
+temp: word
+
+func getInputByte():word{
+    asm{
+        "lda #%10000001     ; Set NMI enable bit and joypad"
+         "sta $4200"
+         "WaitForUserInput:"
+         "lda $4212"
+         "and #1"
+         "bne WaitForUserInput   ;Wait for input unless we have the input"
+         "lda $4219          ;Load input into the accumulator then return (compiler adds it)"
+    }
+}
+
+
+func main(){
+    for i: word = 0; i < 1024; i = i + 1 do{
+        golBoard[i] = current
+        temp = current
+        current = next
+        next = temp
+    }
+    asm{}
+    golBoard[436] = current
+    asm{}
+    while true do{
+        in: word = getInputByte()
+        if in > 0 then goTime = true
+    }
+
+    asm{"stp    ;stop the processor from running"}
+}
+
+
+func VBlank(){
+    if goTime then
+        asm{
+            "sep #$20"
+            "lda #%00000100"
+            "sta $2107   ;This sets the lowest bit for tilemap"
+            "            ;so map starts at $0400"
+            "stz $210b   ;Tiles start at 0"
+            "ldx #$0400"
+            "stx $2116   ;Write to VRAM where the map is"
+            "            ;But halved bc of the write mode"
+            "ldy #$80 ;this is just a thing we have to set"
+            "sty $2115   ;VRAM incriment value"
+            "lda #1"
+            "sta $4300"
+            "lda #$18"
+            "sta $4301"
+            "ldx #100"
+            "stx $4302"
+            "lda #$7e"
+            "sta $4304"
+            "ldx #2048"
+            "stx $4306"
+
+            "lda #1"
+            "sta $420b"
+            "rep #$20"
+        }
+}

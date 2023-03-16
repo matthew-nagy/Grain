@@ -1,6 +1,13 @@
 package TreeWalker
 
+import Grain.GlobalData
+import TreeWalker.IR.PushRegister
+
+import scala.annotation.tailrec
+
 object Optimise {
+
+  case class Result(optimisedFragment: List[IR.Instruction], remaining: List[IR.Instruction])
 
   //Actions:
   //  Finds dummy pulls followed by a dummy push, gets rid of them->
@@ -12,19 +19,31 @@ object Optimise {
   //    Saves the 4 cycles of the dummy push
   //  Finds a function call being used as a new variable and gets rid of a dummy push beforehand ->
   //    Saves the 4 cycles of the dummy push by pushing A with the return value
-  def stackUsage(instructions: List[IR.Instruction]): List[IR.Instruction] = {
-    instructions match
-      case Nil => Nil
+  //  Finds pushing the first stack value as a single argument to a 1 arg function
+  //    If you have already loaded/ stored the first stack value, you know that its already in the right place
+  @tailrec
+  def stackUsage(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
+    val next: Result = instructions match
+      case Nil => return alreadyOptimised
       case IR.PopDummyValue(_) :: IR.PushDummyValue(_) :: remaining =>
-        Optimise.stackUsage(remaining)
+        Result(Nil, remaining)
       case IR.PopDummyValue(_) :: IR.PushRegister(AReg()) :: remaining =>
-        IR.Store(StackRelative(2), AReg()) :: Optimise.stackUsage(remaining)
+        Result(IR.Store(StackRelative(2), AReg()) :: Nil, remaining)
       case IR.PushDummyValue(_) :: IR.Load(loadOp, AReg()) :: IR.Store(StackRelative(2), AReg()) :: remaining =>
-        IR.Load(loadOp, AReg()) :: IR.PushRegister(AReg()) :: Optimise.stackUsage(remaining)
+        Result(IR.Load(loadOp, AReg()) :: IR.PushRegister(AReg()) :: Nil, remaining)
       case IR.PushDummyValue(_) :: IR.JumpLongSaveReturn(label) :: IR.Store(StackRelative(2), AReg()) :: remaining =>
-        IR.JumpLongSaveReturn(label) :: IR.PushRegister(AReg()) :: Optimise.stackUsage(remaining)
+        Result(IR.JumpLongSaveReturn(label) :: IR.PushRegister(AReg()) :: Nil, remaining)
+      case IR.Load(StackRelative(2), reg1) :: PushRegister(reg2) :: IR.JumpLongSaveReturn(func) ::
+        IR.PopDummyValue(_) :: remaining if reg1 == reg2 =>
+
+       Result(IR.JumpLongSaveReturn(func) :: Nil, remaining)
+      case IR.Store(StackRelative(2), reg1) :: PushRegister(reg2) :: IR.JumpLongSaveReturn(func) ::
+        IR.PopDummyValue(_)  :: remaining if reg1 == reg2 =>
+
+        Result(IR.Store(StackRelative(2), reg1) :: IR.JumpLongSaveReturn(func) :: Nil, remaining)
       case _ =>
-        instructions.head :: Optimise.stackUsage(instructions.tail)
+        Result(instructions.head :: Nil, instructions.tail)
+    Optimise.stackUsage(next.remaining, alreadyOptimised ::: next.optimisedFragment)
   }
 
   //Actions:
@@ -72,5 +91,19 @@ object Optimise {
         }
       case _ =>
         instructions.head :: Optimise.registerUsage(instructions.tail)
+  }
+
+  def apply(instructions: List[IR.Instruction]): List[IR.Instruction] = {
+    var result = instructions
+    if (GlobalData.optimisationFlags.optimiseRegisterUsage) {
+      result = Optimise.registerUsage(result)
+    }
+    if (GlobalData.optimisationFlags.optimiseStackUsage) {
+      result = Optimise.stackUsage(result)
+    }
+    if (GlobalData.optimisationFlags.optimiseDirectAddresses) {
+      result = Optimise.directAddresses(result)
+    }
+    result
   }
 }

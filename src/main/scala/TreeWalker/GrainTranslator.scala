@@ -89,25 +89,33 @@ object GrainTranslator {
       case FunctionDecl(funcSymbol, _, body) =>
         val functionScope = scope.getChild(topLevel).getChild(body)
         val tFuncScope = TranslatorScope(functionScope)
-        var funcLabel = "func_" ++ funcSymbol.name ++ "_l" ++ funcSymbol.lineNumber.toString
-        if(funcSymbol.name == "main"){
-          funcLabel = "main_function"
-        }
-        //Add an extra return in case you reach the bottom
-        //Will cause errors if it is expecting a value, so
-        //lets hope that doesn't happen
-        val functionBody = IRBuffer()
-          .append(IR.PutLabel(Label(funcLabel)))
-          .append(tFuncScope.extendStack())
-          .append(
-            (body.statements ::: (Return(None) :: Nil))
-            .map(StatementTranslator(_, TranslatorScope(functionScope)))
-            .foldLeft(IRBuffer())(_.append(_))
-            .append(tFuncScope.reduceStack())
-            .append(IR.Spacing())
-          )
+        val defaultFuncLabel = "func_" ++ funcSymbol.name ++ "_l" ++ funcSymbol.lineNumber.toString
+        val functionStart = funcSymbol.name match
+          case "main" => IR.PutLabel(Label("main_function")) :: Nil
+          case "VBlank" => IR.PutLabel(Label("VBlank")) :: IR.PushRegister(AReg()) :: IR.PushRegister(XReg()) :: IR.PushRegister(YReg()) ::
+            IR.PushProcessorStatus() :: Nil
+          case _ => IR.PutLabel(Label(defaultFuncLabel)) :: Nil
 
-        FunctionCode(functionBody) :: Nil
+        val saveStack = IR.TransferToX(StackPointerReg()) :: IR.PushRegister(XReg()).addComment("Record stack frame") :: Nil
+
+        val prepareStack = tFuncScope.extendStack()
+
+        val translatedBody =
+          body.statements
+            .map(StatementTranslator(_, tFuncScope))
+            .foldLeft(IRBuffer())(_.append(_))
+
+        val fixStack = IR.Load(StackRelative(tFuncScope.getStackFrameOffset), AReg()).addComment("Fix stack before return") ::
+          IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
+
+        val funcEnd = funcSymbol.name match
+          case "main" => IR.StopClock().addComment("At the end of main") :: Nil
+          case "VBlank" => IR.PullProcessorStatus() :: IR.PopRegister(YReg()) :: IR.PopRegister(XReg()) :: IR.PopRegister(AReg()) :: IR.ReturnFromInterrupt() :: Nil
+          case _ => IR.ReturnLong() :: Nil
+
+        val instructionList = functionStart ::: saveStack ::: prepareStack ::: translatedBody.toList ::: fixStack ::: funcEnd
+
+        FunctionCode(IRBuffer().append(instructionList).append(IR.Spacing())) :: Nil
       case Load(varName, palleteName, filename, references) =>
         val spriteSheetForm = scope.getSymbol(varName.lexeme).form.asInstanceOf[Symbol.Data]
         val paletteForm = scope.getSymbol(palleteName.lexeme).form.asInstanceOf[Symbol.Data]
@@ -124,11 +132,10 @@ object GrainTranslator {
   }
 
   def main(args: Array[String]): Unit = {
-    val dir: String = System.getProperty("user.dir")
-    println("Running in " ++ dir)
 
-
-    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/GrainTest.txt"))
+    //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/GrainTest.txt"))
+    //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/fragment.txt"))
+    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/array2d.txt"))
     val symbolTable = new SymbolTable
 
     val topLevels = ListBuffer.empty[Stmt.TopLevel]
@@ -148,14 +155,12 @@ object GrainTranslator {
     }
 
     var generatedIr = apply(topLevels.toList, symbolTable.globalScope)
-    generatedIr = Optimise.registerUsage(generatedIr)
-    generatedIr = Optimise.stackUsage(generatedIr)
-    generatedIr = Optimise.directAddresses(generatedIr)
+    generatedIr = Optimise(generatedIr)
 
-//    val assembly = generatedIr.map(Translator(_)).foldLeft("")(_ ++ "\n" ++ _)
-//
-//    println(assembly)
-    generatedIr.map(i => println(i.toString))
+    val assembly = generatedIr.map(Translator(_)).foldLeft("")(_ ++ "\n" ++ _)
+
+    println(assembly)
+//    generatedIr.map(i => println(i.toString))
     println("IR was length " ++ generatedIr.length.toString)
   }
 }

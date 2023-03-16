@@ -22,15 +22,29 @@ buffer: word[10]
 globDat: word[20]
 globDat2: word[20]
 
+func double(val: word): word{
+    return val + val
+}
+golBoard: word[32][32]
+
 func main(){
     playing: bool = true
+
+    for y: word = 0; y < 16; y = y + 2 do{
+        for x: word = 0; x < 32; x = x + 1 do{
+            golBoard[y][x] = 5
+            golBoard[y + 1][x] = 6
+        }
+    }
 
     for i:word = 0; i < 20; i = i + 1 do
         globDat[i] = i
 
     for i:word = 0; i < 20; i = i + 1 do{
         mid:word = globDat[i]
-        globDat2[i] = mid + mid
+        mid = double(mid)
+        asm{";"}
+        globDat2[i] = mid
     }
 
     while playing do{
@@ -40,9 +54,63 @@ func main(){
             if (inputByte and 1) > 0 then
                 playerXPosition = playerXPosition + 1
             else if (inputByte and 2) > 0 then
-                playerXPosition = 1 - playerXPosition
+                playerXPosition = playerXPosition- 1
         }
         frame()
     }
     asm{"stp    ;stop the processor from running"}
+}
+
+//Specifically unbanked data
+func prepDmaData(channel: word, flags: word, source: word ptr, size: word){
+    asm{
+        //First set flags
+        "lda 7, s"
+        "tax"
+        "sep #$20"
+        "lda #1"
+        "cpx #0"
+        "beq +"
+        "-"
+        "asl"
+        "dex"
+        "bpl -"
+        "+"
+        "and 4"//and it with the flags already there
+        "sta 4"
+        "rep #$20"
+
+        //Now start the dma
+        "lda 7, s"//channel
+        "asl"
+        "asl"
+        "asl"
+        "asl"
+        "clc"
+        "adc #$4300"
+        "tay"//Y now stores a pointer to the DMA channel
+        "lda 1, s"//size
+        "sta 5, y"
+        "lda 3, s"//source
+        "sta 2, y"
+        "lda 5, s"//flags
+        "sta 0, y"
+        "sep #$20"
+        "lda #$7E"
+        "sta 4, y"
+        "rep #$20"
+    }
+}
+
+func runDma(){
+    asm{
+        "sep #$20"
+        "lda 4"
+        "sta $420b"
+        "stz 4"
+        "rep #$20"
+    }
+}
+
+func VBlank(){
 }

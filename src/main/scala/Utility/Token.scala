@@ -64,7 +64,7 @@ object Token{
   val doubleCharTokens: Map[Char, DoubleTokenEntry] = Map(
     '!' -> DoubleTokenEntry(Bang, List(TokenOption('=', BangEqual))),
     '<' -> DoubleTokenEntry(Less, List(TokenOption('=', LessEqual), TokenOption('<', ShiftLeft))),
-    '>' -> DoubleTokenEntry(Greater, List(TokenOption('=', GreaterEqual), TokenOption('<', ShiftRight))),
+    '>' -> DoubleTokenEntry(Greater, List(TokenOption('=', GreaterEqual), TokenOption('>', ShiftRight))),
     '=' -> DoubleTokenEntry(Equal, List(TokenOption('=', EqualEqual))),
   )
 

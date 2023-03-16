@@ -7,6 +7,7 @@ type Bitdepth = 2 | 4 | 8
 val bitdepthLiteralStrings: Set[String] = Set("2bpp", "4bpp", "8bpp")
 
 sealed trait Type
+sealed trait PtrType extends Type
 sealed trait SpecialType extends Type
 
 
@@ -20,8 +21,8 @@ case class Empty() extends Type
 case class Word() extends Type
 case class BooleanType() extends Type
 case class StringLiteral() extends Type
-case class Ptr(to: Type) extends Type
-case class Array(of: Type, length: Int) extends Type
+case class Ptr(to: Type) extends PtrType
+case class Array(of: Type, length: Int) extends PtrType
 case class FunctionPtr(argumentTypes: List[Type], returnType: Type) extends Type
 object Struct{
   case class Entry(symbol: Symbol, offset: Int)
@@ -59,4 +60,26 @@ def getTypeSize(dataType: Type):Int = {
       getTypeSize(of) * length
     case FunctionPtr(_, _) => 2
     case s @ Struct(_) => s.size
+}
+
+def stripPtrType(t: Type):Type = {
+  t match
+    case Ptr(to) => to
+    case Array(of, _) => of
+    case _ => throw new Exception(t.toString ++ " is not a pointer type")
+}
+
+def typeEquivilent(t1: Type, t2: Type): Boolean = {
+  if(t1 == t2){
+    true
+  }
+  else{
+    if(t1.isInstanceOf[PtrType] && t2.isInstanceOf[PtrType]){
+      typeEquivilent(stripPtrType(t1), stripPtrType(t2))
+    }
+    else{
+      println(t1.toString ++ " != " ++ t2.toString)
+      false
+    }
+  }
 }
