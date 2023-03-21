@@ -15,7 +15,7 @@ cellAlivePoint: word = 0xB000
 
 func setSeed(value: word){
     asm{
-        "lda #$72a3"
+        "lda 6, s"
         "sta 10"
     }
 }
@@ -112,7 +112,7 @@ func delayLama(){
 }
 
 func main(){
-    srand()
+    setSeed(0x82a1)
     setupGolBoard()
     setup = true
 

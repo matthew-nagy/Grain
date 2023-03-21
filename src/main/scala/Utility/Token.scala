@@ -35,7 +35,7 @@ object Token{
   case class DoubleTokenEntry(otherwise: TokenType, options: List[TokenOption])
 
   def isNumericChar(c: Char) = c >= '0' && c <= '9'
-  def isHexDigit(c: Char) = isNumericChar(c) || (c>='A' && c<='F')
+  def isHexDigit(c: Char) = isNumericChar(c) || (c>='A' && c<='F') || (c>='a' && c<='f')
   def isBinaryDigit(c: Char) = c == '0' || c == '1'
   def isValidAlphabetChar(c: Char) =
     (c == '_') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
