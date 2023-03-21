@@ -93,7 +93,7 @@ object GrainTranslator {
         val functionStart = funcSymbol.name match
           case "main" => IR.PutLabel(Label("main_function")) :: Nil
           case "VBlank" => IR.PutLabel(Label("VBlank")) :: IR.PushRegister(AReg()) :: IR.PushRegister(XReg()) :: IR.PushRegister(YReg()) ::
-            IR.PushProcessorStatus() :: Nil
+            IR.PushProcessorStatus() :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil
           case _ => IR.PutLabel(Label(defaultFuncLabel)) :: Nil
 
         val saveStack = IR.TransferToX(StackPointerReg()) :: IR.PushRegister(XReg()).addComment("Record stack frame") :: Nil
@@ -162,5 +162,7 @@ object GrainTranslator {
     println(assembly)
 //    generatedIr.map(i => println(i.toString))
     println("IR was length " ++ generatedIr.length.toString)
+
+    println(symbolTable.globalScope)
   }
 }

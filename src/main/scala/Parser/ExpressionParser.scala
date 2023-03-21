@@ -51,11 +51,21 @@ object ExpressionParser {
       tokenBuffer.advance()
       val right = parseAssignment(scope, tokenBuffer)
 
-      return expr match
-        case Expr.Get(_, _) => Expr.Set(expr, right)
+      var expression = expr
+      var isGrouping = true
+      while isGrouping do{
+        expression match
+          case Grouping(internalExpr) => expression = internalExpr
+          case _ => isGrouping = false
+      }
+      return expression match
+        case Expr.Get(_, _) => Expr.Set(expression, right)
         case Expr.Variable(name) => Expr.Assign(name, right)
-        case Expr.GetIndex(_, _) => Expr.SetIndex(expr, right)
-        case _ => throw Errors.invalidLValue(token)
+        case Expr.GetIndex(_, _) => Expr.SetIndex(expression, right)
+        case Expr.Indirection(inner) => Expr.SetIndex(GetIndex(inner, Expr.NumericalLiteral(0)), right)//This is horrible. I love it
+        case _ =>
+          println(expression)
+          throw Errors.invalidLValue(token)
     }
 
     expr
@@ -143,15 +153,18 @@ object ExpressionParser {
   private def parseUnary(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
     if((TokenType.Tilde :: TokenType.Bang :: TokenType.Asperand :: TokenType.Minus :: Nil).contains(tokenBuffer.peekType)){
       val token = tokenBuffer.advance()
-      val op = token.tokenType match {
-        case TokenType.Tilde => Operation.Unary.BitwiseNot
-        case TokenType.Bang => Operation.Unary.BooleanNegation
-        case TokenType.Minus => Operation.Unary.Minus
+      val op: Option[Operation.Unary]  = token.tokenType match {
+        case TokenType.Tilde => Some(Operation.Unary.BitwiseNot)
+        case TokenType.Bang => Some(Operation.Unary.BooleanNegation)
+        case TokenType.Minus => Some(Operation.Unary.Minus)
+        case TokenType.Asperand => None
         case _ => throw Errors.expectedUnary(token)
       }
       val right = parseUnary(scope, tokenBuffer)
 
-      return Expr.UnaryOp(op, right)
+      return op match
+        case Some(operation) => Expr.UnaryOp(operation, right)
+        case None => Expr.Indirection(right)
     }
     parseCall(scope, tokenBuffer)
   }
@@ -266,52 +279,118 @@ object ExpressionParser {
       case Operation.Unary.BooleanNegation => value == Utility.BooleanType()
       case Operation.Unary.BitwiseNot => value == Utility.BooleanType() || value == Utility.Word()
       case null => throw Exception("Invalid case")
-  def typeCheck(expr: Expr.Expr, scope: Scope): Boolean = {
+  def typeCheck(expr: Expr.Expr, scope: Scope): Unit = {
     import Expr.*
 
     expr match
       case Assign(varToken, arg) =>
-        typeCheck(arg, scope) && Utility.typeEquivilent(scope(varToken.lexeme).dataType, scope.getTypeOf(arg))
-      case BooleanLiteral(_) => true
+        typeCheck(arg, scope)
+        if(!Utility.typeEquivilent(scope(varToken.lexeme).dataType, scope.getTypeOf(arg))){
+          throw Errors.badlyTyped(
+            varToken.lexeme ++ " has type " ++ scope(varToken.lexeme).dataType.toString ++ ", rValue has type " ++ scope.getTypeOf(arg).toString
+          )
+        }
+      case BooleanLiteral(_) =>
       case UnaryOp(op, arg) =>
-        typeCheck(arg, scope) && typeCheckUnary(op, scope.getTypeOf(arg))
+        typeCheck(arg, scope)
+        typeCheckUnary(op, scope.getTypeOf(arg))
       case BinaryOp(op, left, right) =>
-        typeCheck(left, scope) && typeCheck(right, scope) && (op match
+        typeCheck(left, scope)
+        typeCheck(right, scope)
+        op match
           case _ if Operation.Groups.LogicalTokens.contains(op) || Operation.Groups.RelationalTokens.contains(op) =>
-            Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))
+            if(!Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))){
+              throw Errors.badlyTyped(
+                "LValue " ++ left.toString ++ " with type " ++ scope.getTypeOf(left).toString ++
+                  "cannot use " ++ op.toString ++ " with RValue of type " ++ scope.getTypeOf(right).toString ++ " (" ++ right.toString ++ ")"
+              )
+            }
           case _ if Operation.Groups.ArithmeticTokens.contains(op) =>
-            Utility.typeEquivilent(scope.getTypeOf(left), Utility.Word()) && Utility.typeEquivilent(scope.getTypeOf(right), Utility.Word())
+            if(!Utility.typeEquivilent(scope.getTypeOf(left), Utility.Word())){
+              throw Errors.badlyTyped(
+                op.toString ++ " requires arguments of type word. Left argument (" ++ left.toString ++ ") has type " ++ scope.getTypeOf(left).toString
+              )
+            }
+            if(!Utility.typeEquivilent(scope.getTypeOf(right), Utility.Word())){
+              throw Errors.badlyTyped(
+                op.toString ++ " requires arguments of type word. Right argument (" ++ right.toString ++ ") has type " ++ scope.getTypeOf(right).toString
+              )
+            }
           case _ => throw Exception("Ungrouped binary operation")
-        )
-      case NumericalLiteral(_) => true
-      case StringLiteral(_) => true
+
+      case NumericalLiteral(_) =>
+      case StringLiteral(_) =>
       case Indirection(expr) =>
-        typeCheck(expr, scope) && scope.getTypeOf(expr).isInstanceOf[Utility.Ptr]
-      case Variable(_) => true
+        typeCheck(expr, scope)
+        if(!scope.getTypeOf(expr).isInstanceOf[Utility.Ptr]){
+          Errors.badlyTyped(
+            "Cannot use indirection on non pointer type. " ++ expr.toString ++ " is of type " ++ scope.getTypeOf(expr).toString
+          )
+        }
+      case Variable(_) =>
       case FunctionCall(function, arguments) =>
         val functionType = scope.getTypeOf(function)
         functionType match
           case Utility.FunctionPtr(argTypes, _) =>
-            argTypes.zip(arguments.map(scope.getTypeOf)).forall((expectedT, givenT) => Utility.typeEquivilent(expectedT, givenT)) && arguments.forall(typeCheck(_, scope))
-          case _ => false
+            argTypes.zip(arguments.map(scope.getTypeOf)).forall(
+              (expectedT, givenT) => {
+                if (!Utility.typeEquivilent(expectedT, givenT)) {
+                  throw Errors.badlyTyped(
+                    "Expected type " ++ expectedT.toString ++ " but got type " ++ givenT.toString ++ ". (" ++ expr.toString ++ ")"
+                  )
+                }
+                true
+              }
+            ) && arguments.forall(arg => {
+              typeCheck(arg, scope)
+              true
+            })
+          case _ =>
       case Get(left, name) =>
         val leftType = scope.getTypeOf(left)
         leftType match {
           case leftType: Struct =>
-            leftType.entries.contains(name.lexeme) && typeCheck(left, scope)
-          case _ => false
+            typeCheck(left, scope)
+            if(!leftType.entries.contains(name.lexeme)){
+              throw Errors.structDoesntHaveElement(name.lexeme, leftType.toString)
+            }
+          case _ =>
         }
       case GetAddress(of) =>
         //Only some types can have their address got
-        (of.isInstanceOf[Variable] || of.isInstanceOf[Get] || of.isInstanceOf[GetIndex]) && typeCheck(of, scope)
+        typeCheck(of, scope)
+        if(!(of.isInstanceOf[Variable] || of.isInstanceOf[Get] || of.isInstanceOf[GetIndex])){
+          throw Errors.badlyTyped(
+            of.toString ++ " is not an addressable value"
+          )
+        }
       case GetIndex(of, by) =>
         val ofType = scope.getTypeOf(of)
-        typeCheck(of, scope) && typeCheck(by, scope) && Utility.typeEquivilent(scope.getTypeOf(by), Utility.Word()) && ofType.isInstanceOf[Utility.PtrType]
+        typeCheck(of, scope)
+        typeCheck(by, scope)
+        if(!Utility.typeEquivilent(scope.getTypeOf(by), Utility.Word())){
+          throw Errors.badlyTyped(by.toString ++ " has type " ++ scope.getTypeOf(by).toString ++ ", expected word")
+        }
+        if(!ofType.isInstanceOf[Utility.PtrType]){
+          throw Errors.cannotIndexNonPoinerElements(of.toString, ofType)
+        }
       case Set(left, right) =>
-        Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right)) && typeCheck(left, scope) && typeCheck(right, scope)
+        typeCheck(left, scope)
+        typeCheck(right, scope)
+        if(!Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))){
+          throw Errors.badlyTyped(
+            left.toString ++ " has type " ++ scope.getTypeOf(left).toString ++ ", rValue has type " ++ scope.getTypeOf(right).toString
+          )
+        }
       case SetIndex(left, right) =>
-        Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right)) && typeCheck(left, scope) && typeCheck(right, scope)
+        typeCheck(left, scope)
+        typeCheck(right, scope)
+        if (!Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))) {
+          throw Errors.badlyTyped(
+            left.toString ++ " has type " ++ scope.getTypeOf(left).toString ++ ", rValue has type " ++ scope.getTypeOf(right).toString
+          )
+        }
       case Grouping(internalExpr) => typeCheck(internalExpr, scope)
-      case null => true
+      case null => throw new Exception("What?")
   }
 }

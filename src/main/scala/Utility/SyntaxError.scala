@@ -50,6 +50,21 @@ object Errors{
       badToken.lineNumber,
       "Value starting with '" ++ badToken.lexeme ++ "' is not an assignable value"
     )
+  def badlyTyped(message: String): SyntaxError =
+    SyntaxError(
+      -1,
+      "Badly typed: " ++ message
+    )
+  def structDoesntHaveElement(name: String, t: String): SyntaxError =
+    SyntaxError(
+      -1,
+      t.toString ++ " does not have member " ++ name
+    )
+  def cannotIndexNonPoinerElements(expr: String, withType: Utility.Type): SyntaxError =
+    SyntaxError(
+      -1,
+      "Cannot index non pointer expression " ++ expr ++ " with type " ++ withType.toString
+    )
   def SymbolNotFound(badToken: Token):SyntaxError =
     SyntaxError(
       badToken.lineNumber,

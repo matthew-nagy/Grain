@@ -12,11 +12,11 @@ object GlobalData {
   }
   
   object optimisationFlags{
-    val staticOptimiseTree = true
+    val staticOptimiseTree = false
     val stackPressureOptimisations = false
-    val optimiseStackUsage = true
-    val optimiseRegisterUsage = true
-    val optimiseDirectAddresses = true
+    val optimiseStackUsage = false
+    val optimiseRegisterUsage = false
+    val optimiseDirectAddresses = false
   }
 
   object snesData{

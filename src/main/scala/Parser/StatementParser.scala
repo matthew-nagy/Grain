@@ -31,7 +31,7 @@ object StatementParser {
             parseVariableDecl(scope, tokenBuffer, false)
           else
             parseExpression(scope, tokenBuffer)
-      if !typeCheck(statement, scope) then throw new Exception("Statement is badly typed: " ++ statement.toString)
+      typeCheck(statement, scope)
 
       if GlobalData.optimisationFlags.staticOptimiseTree then OptimiseStatement(statement)
       else statement
@@ -103,7 +103,7 @@ object StatementParser {
     val ifBody = parseOrThrow(ifScope, tokenBuffer)
 
     val elseStmt = if(tokenBuffer.peekType != TokenType.Else) None
-                   else Some(parseElse(scope, tokenBuffer))
+                   else Some(parseElse(ifScope, tokenBuffer))
 
     val ifStmt = Stmt.If(condition, ifBody, elseStmt, ifLine)
     scope.linkStatementWithScope(ifStmt, ifScope)
@@ -149,36 +149,68 @@ object StatementParser {
     whileStmt
   }
 
-  def typeCheck(statement: Stmt.Statement, scope: Scope): Boolean = {
+  def typeCheck(statement: Stmt.Statement, scope: Scope): Unit = {
     import Stmt.*
     statement match
-      case Assembly(assembly) => true
+      case Assembly(assembly) =>
       case Block(statements) =>
-        statements.forall(typeCheck(_, scope.getChildOrThis(statement)))
-      case EmptyStatement() => true
+        statements.forall(stmt => {
+          typeCheck(stmt, scope.getChildOrThis(statement))
+          true
+        })
+      case EmptyStatement() =>
       case Expression(expr) => ExpressionParser.typeCheck(expr, scope)
       case For(startExpr, breakExpr, incrimentExpr, body, _) =>
         val forScope = scope.getChildOrThis(statement)
-        val startOk = startExpr.isEmpty || startExpr.exists(typeCheck(_, forScope))
-        val breakOk = breakExpr.isEmpty || breakExpr.exists(ExpressionParser.typeCheck(_, forScope))
-        val incrimentOk = incrimentExpr.isEmpty || incrimentExpr.exists(ExpressionParser.typeCheck(_, forScope))
-        startOk && breakOk && incrimentOk && typeCheck(body, forScope)
+        startExpr.exists(value =>{
+          typeCheck(value, forScope)
+          true
+        })
+        breakExpr.exists(value => {
+          ExpressionParser.typeCheck(value, forScope)
+          true
+        })
+        incrimentExpr.exists(value => {
+          ExpressionParser.typeCheck(value, forScope)
+          true
+        })
+        typeCheck(body, forScope)
       case FunctionDecl(_, _, body) => typeCheck(body, scope.getChildOrThis(statement))
       case Else(_) => throw Exception("Else branch shouldn't be triggered; handle in the if")
       case If(condition, body, elseBranch, _) =>
-        val ifOk = Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType()) && ExpressionParser.typeCheck(condition, scope) &&
-          typeCheck(body, scope.getChildOrThis(statement))
+        ExpressionParser.typeCheck(condition, scope)
+        typeCheck(body, scope.getChildOrThis(statement))
+        if(!Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType())){
+          throw Errors.badlyTyped(
+            "Expected boolean, " ++ condition.toString ++ " had type " ++ scope.getTypeOf(condition).toString
+          )
+        }
         elseBranch match
-          case None => ifOk
-          case Some(elseStmt) => ifOk && typeCheck(elseStmt.body, scope.getChildOrThis(elseStmt))
-      case Return(Some(expr)) => ExpressionParser.typeCheck(expr, scope) && Utility.typeEquivilent(scope.getTypeOf(expr), scope.getReturnType)
-      case Return(None) => true
+          case None =>
+          case Some(elseStmt) => typeCheck(elseStmt.body, scope.getChildOrThis(elseStmt))
+      case Return(Some(expr)) =>
+        ExpressionParser.typeCheck(expr, scope)
+        if(!Utility.typeEquivilent(scope.getTypeOf(expr), scope.getReturnType)){
+          throw Errors.badlyTyped(expr.toString ++ " has type " ++ scope.getTypeOf(expr).toString ++ " but the stated return type is " ++ scope.getReturnType.toString)
+        }
+      case Return(None) =>
       case VariableDecl(Expr.Assign(name, initializer)) =>
-        ExpressionParser.typeCheck(initializer, scope) && Utility.typeEquivilent(scope(name.lexeme).dataType, scope.getTypeOf(initializer))
+        ExpressionParser.typeCheck(initializer, scope)
+        if(!Utility.typeEquivilent(scope(name.lexeme).dataType, scope.getTypeOf(initializer))){
+          throw Errors.badlyTyped(
+            name.lexeme ++ " of type " ++ scope(name.lexeme).dataType.toString ++ " cannot be innitializeationabled with type " ++ scope.getTypeOf(initializer).toString
+          )
+        }
       case While(condition, body, _) =>
-        ExpressionParser.typeCheck(condition, scope) && Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType()) && typeCheck(body, scope.getChildOrThis(statement))
+        ExpressionParser.typeCheck(condition, scope)
+        if(!Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType())){
+          throw Errors.badlyTyped(
+            "RRRRRRRRRRREEEEEEEEEEEEEEEEEEEEEEEEE"
+          )
+        }
+        typeCheck(body, scope.getChildOrThis(statement))
       case a @ _ =>
         println(a.toString ++ " hasn't been handled yet")
-        true
+        throw new Exception("AAAAAA")
   }
 }

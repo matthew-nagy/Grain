@@ -63,7 +63,7 @@ package Operation:
     )
 
     val orderImportantOperations: Set[Operation.Binary] = Set(
-      Operation.Binary.Subtract, Operation.Binary.ShiftLeft, Operation.Binary.ShiftRight, Operation.Binary.Divide
+      Operation.Binary.Subtract, Operation.Binary.Divide
     )
     
     val oppositeMap: Map[Binary, Binary] = Map(

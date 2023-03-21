@@ -1,53 +1,137 @@
-statePtr: word[32][32]ptr
-nextState: word[32][32]ptr
-tempStatePtr: word[32][32]ptr
+statePtr: word[32]ptr
+nextStatePtr: word[32]ptr
+tempStatePtr: word[32]ptr
 golState1: word[32][32]
 golState2: word[32][32]
 
 setup: bool = false
+
+alive: word = 5
+dead: word = 0
+
 frameCount: word = 0
 
-func setStartCell(x: word, y: word){
-    golState1[y][x] = 5
-    golState2[y][x] = 4
+cellAlivePoint: word = 0xB000
+
+func setSeed(value: word){
+    asm{
+        "lda #$72a3"
+        "sta 10"
+    }
 }
 
-func setupGolBoards(){
+func rand():word{
+    asm{
+        "sep #$30"
+
+        "lda 11"
+        "tay"
+        "lsr"
+        "lsr"
+        "lsr"
+        "sta 11"
+        "lsr"
+        "eor 11"
+        "lsr"
+        "eor 11"
+        "eor 10"
+        "sta 11"
+
+        "tya"
+        "sta 10"
+        "asl"
+        "eor 10"
+        "asl"
+        "eor 10"
+        "asl"
+        "asl"
+        "asl"
+        "eor 10"
+        "sta 10"
+
+        "rep #$30"
+        "lda 10"
+        "plx"
+        "rtl"
+    }
+}
+
+func setupGolBoard(){
+    val: word
     for y: word = 0; y < 32; y = y + 1 do{
         for x : word = 0; x < 32; x = x + 1 do{
-            setStartCell(x, y)
+            val: word = dead
+            if rand() > cellAlivePoint then val = alive
+            golState1[y][x] = val
         }
     }
+}
+
+func checkIfAlive(x: word, y: word): word{
+    x = x and 0x1F
+    y = y and 0x1F
+    if statePtr[y][x] == alive then return 1
+    else return 0
+}
+
+func calculateAliveNeighbours(x: word, y: word): word{
+    num: word = 0
+    num = num + checkIfAlive(x-1, y-1)
+    num = num + checkIfAlive(x, y-1)
+    num = num + checkIfAlive(x+1, y-1)
+
+    num = num + checkIfAlive(x-1, y)
+    num = num + checkIfAlive(x+1, y)
+
+    num = num + checkIfAlive(x-1, y+1)
+    num = num + checkIfAlive(x, y+1)
+    num = num + checkIfAlive(x+1, y+1)
+    return num
+}
+
+func updateCell(x: word, y: word){
+    aliveNeighbours: word = calculateAliveNeighbours(x, y)
+    nextVal: word = dead
+    if statePtr[y][x] == alive then{
+        if aliveNeighbours == 2 or aliveNeighbours == 3 then
+            nextVal = alive
+    }
+    else if aliveNeighbours == 3 then nextVal = alive
+
+    nextStatePtr[y][x] = nextVal //statePtr[y][x]
 }
 
 func stepGameOfLife(){
+    for y: word = 0; y < 32; y = y + 1 do
+        for x: word = 0; x < 32; x = x + 1 do
+            updateCell(x, y)
+}
 
+func delayLama(){
+    for i: word = 0; i < 200; i = i + 1 do asm{"wai"}
 }
 
 func main(){
-
-    asm{"wai"}
-    //setupGolBoards()
-
-    statePtr = golState1@
-    nextState = golState2@
-
+    srand()
+    setupGolBoard()
     setup = true
 
-    //Start calulating the frame, and then while 10 frames haven't passed, wait
-    //This way it will always be ready by the time we buffer swap
+    statePtr = golState1
+    nextStatePtr = golState2
 
-    while true do{
-        stepGameOfLife()
-        while frameCount < 10 do {
-            asm{"wai"}
-        }
-        tempStatePtr = statePtr
-        statePtr = nextState
-        nextState = tempStatePtr
-        frameCount = 0
+    delayLama()
+    updateCell(0x10, 0x12)
+
+    while true do {
+        //if frameCount > 70 then{
+            frameCount = 0
+            stepGameOfLife()
+            tempStatePtr = statePtr
+            statePtr = nextStatePtr
+            nextStatePtr = tempStatePtr
+        //}
+        asm{"wai"}
     }
-
 }
 
 func VBlank(){

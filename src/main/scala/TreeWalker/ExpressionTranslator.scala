@@ -141,6 +141,15 @@ object Indexing{
         indexToA ::: getValueIntoA
 
       case GetAddress(subExpr) => getIndexValue(subExpr, by, scope).toList
+      case GetIndex(_, _)=>
+        val pushAddressToStack = getAddressInto(of, AReg(), scope).append(IR.PushRegister(AReg())).toList
+        scope.push()
+        val fetchIndex = generateFetchIndexIR(by, of, scope)
+        val addIndicesAndPopAddress = IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil
+        scope.pop()
+        val transferToXThenIndex = IR.TransferToX(AReg()) :: IR.Load(DirectIndexed(0, XReg()), AReg()) :: Nil
+
+        pushAddressToStack ::: fetchIndex ::: addIndicesAndPopAddress ::: transferToXThenIndex
       case FunctionCall(function, arguments) => //TODO
         throw new Exception("Can't index function call results yet")
       case _ => throw new Exception(of.toString ++ " indexed by " ++ by.toString ++ " doesn't make any sense")
@@ -243,6 +252,13 @@ object ExpressionTranslator {
             buffer.append(getRegisterShifts(left, right, IR.ShiftLeft(AReg()), scope))
           case Operation.Binary.ShiftRight =>
             buffer.append(getRegisterShifts(left, right, IR.ShiftRight(AReg()), scope))
+          case x if Operation.Groups.RelationalTokens.contains(x) =>
+            scope.rememberStackLocation()
+            val conditionCode = StatementTranslator.getConditionCode(expr, scope, Label("++"), StatementTranslator.BranchType.IfFalse)
+            val setTrueThenToEnd = IR.Load(Immediate(1), AReg()).addComment(expr.toString ++ "is true") :: IR.BranchShort(Label("+++")) :: Nil
+            val setFalseAndEnd = IR.PutLabel(Label("++")) :: IR.Load(Immediate(0), AReg()).addComment("Its false") :: IR.PutLabel(Label("+++")).addComment("End Binary check, clear stack beneath") :: Nil
+            val fixStack = scope.getFixStackDecay().toList
+            buffer.append(conditionCode ::: setTrueThenToEnd ::: setFalseAndEnd ::: fixStack)
           case _ =>
             val leftToStack = getFromStack(left, scope)
             val rightToAccumulator = getFromAccumulator(right, scope)
@@ -264,7 +280,7 @@ object ExpressionTranslator {
       case Indirection(expr) =>
         expr match
           case Variable(token) => AccumulatorLocation(IRBuffer().append(
-            IR.Load(scope.getAddress(token.lexeme), XReg()) ::
+            IR.Load(scope.getAddress(token.lexeme), AReg()) :: IR.TransferToX(AReg()) ::
               IR.Load(DirectIndexed(0, XReg()), AReg()) :: Nil
           ))
           case _ => throw new Exception("Cannot perform indirection on " ++ expr.toString)
@@ -280,7 +296,11 @@ object ExpressionTranslator {
         )
 
       case Variable(token) => AccumulatorLocation(
-        IRBuffer().append(IR.Load(scope.getAddress(token.lexeme), AReg()))
+        scope.getSymbol(token.lexeme).dataType match
+          case _: Utility.Array => //Get the address
+            IRBuffer().append(Indexing.getAddressInto(expr, AReg(), scope))
+          case _ =>
+            IRBuffer().append(IR.Load(scope.getAddress(token.lexeme), AReg()))
       )
       case GetAddress(expr) =>
         AccumulatorLocation(IRBuffer().append(Indexing.getAddressInto(expr, AReg(), scope)))
@@ -316,9 +336,18 @@ object ExpressionTranslator {
       case BinaryOp(_, _, _) => stackFromAccumulator(expr, scope)
       case NumericalLiteral(_) => stackFromAccumulator(expr, scope)
       case Indirection(_) => stackFromAccumulator(expr, scope)//May be improvable later
-      case Variable(name) => StackLocation(scope.getAddress(name.lexeme), IRBuffer())
+      case Variable(name) =>
+        scope.getSymbol(name.lexeme).dataType match
+          case _: Utility.Array => //Get the address
+            val toA = Indexing.getAddressInto(expr, AReg(), scope).toList
+            val pushToStack = IR.PushRegister(AReg()) :: Nil
+            scope.push()
+            StackLocation(StackRelative(2), IRBuffer().append(toA ::: pushToStack))
+          case _ =>
+            StackLocation(scope.getAddress(name.lexeme), IRBuffer())
       case FunctionCall(_, _) => stackFromAccumulator(expr, scope)
       case GetAddress(_) => stackFromAccumulator(expr, scope)
+      case GetIndex(_, _) => stackFromAccumulator(expr, scope)
       case Grouping(internalExpr) => getFromStack(internalExpr, scope)
       case _ => throw new Exception("Not handled in stack yet (" ++ expr.toString ++ ")")
   }

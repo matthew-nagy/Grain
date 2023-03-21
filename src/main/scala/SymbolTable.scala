@@ -119,7 +119,10 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
       case Expr.NumericalLiteral(_) => Utility.Word()
       case Expr.StringLiteral(_) => Utility.StringLiteral()
       case Expr.Variable(name) => apply(name.lexeme).dataType
-      case Expr.GetIndex(arrayExpr, _) => Utility.stripPtrType(getTypeOf(arrayExpr))
+      case Expr.GetIndex(arrayExpr, _) =>
+        arrayExpr match
+          case Expr.Indirection(_) => getTypeOf(arrayExpr)
+          case _ => Utility.stripPtrType(getTypeOf(arrayExpr))
       case Expr.SetIndex(_, to) => getTypeOf(to)
       case Expr.Indirection(e) =>
         val Utility.Ptr(innerType) = getTypeOf(e)

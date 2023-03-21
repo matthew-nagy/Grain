@@ -2,12 +2,16 @@ package TreeWalker
 
 import scala.collection.mutable.Stack
 import Grain.*
+
+import scala.annotation.tailrec
 class TranslatorScope(private val innerScope: Scope) {
   private var pushesToTheStack = 0
   private val stackFrames = Stack.empty[Int]
   //In 2s because 16 bit. If bytes come later, byte versions will need to be added
   def push(): Unit = pushesToTheStack += 2
   def pop(): Unit = pushesToTheStack -= 2
+
+  //private def getPushesToTheStack() =
 
   def size: Int = innerScope.size
   def inner: Scope = innerScope
@@ -30,12 +34,12 @@ class TranslatorScope(private val innerScope: Scope) {
     buffer
   }
 
-  def offsetToReturnAddress = pushesToTheStack + getOffsetToReturnAddress(0)
+  @tailrec
   private def getOffsetToReturnAddress(currentOffset: Int): Int =
     innerScope match
       case _: GlobalScope => throw new Exception("Went too far")
-      case _: FunctionScope => currentOffset
-      case s: Scope => getParent.getOffsetToReturnAddress(currentOffset + s.size)
+      case _: FunctionScope => currentOffset + pushesToTheStack
+      case s: Scope => getParent.getOffsetToReturnAddress(currentOffset + s.size + pushesToTheStack)
 
   //TODO in future count stack size and maybe just ADC the stack pointer if too large
   def extendStack(): List[IR.Instruction] = {
@@ -48,11 +52,14 @@ class TranslatorScope(private val innerScope: Scope) {
     (for i <- Range(0, stackExtentions) yield IR.PopDummyValue(XReg())).toList
   }
 
-  def getParent: TranslatorScope =
+  private def getParent: TranslatorScope =
     TranslatorScope(innerScope.parent)
 
-  def getChild(statement: Stmt.Statement): TranslatorScope =
-    TranslatorScope(innerScope.getChildOrThis(statement))
+  def getChild(statement: Stmt.Statement): TranslatorScope = {
+    val child = TranslatorScope(innerScope.getChildOrThis(statement))
+    child.pushesToTheStack = pushesToTheStack
+    child
+  }
 
   def getSymbol(symbolName: String): Symbol = innerScope(symbolName)
 
@@ -64,14 +71,12 @@ class TranslatorScope(private val innerScope: Scope) {
       case glob: Symbol.GlobalVariable => Direct(glob.location)
   }
 
-  def getStackFrameOffset: Int = {
-    if(inner.parent.isInstanceOf[GlobalScope]){//This is the argument scope
+  def getStackFrameOffset: Int =
+    pushesToTheStack + (if(inner.parent.isInstanceOf[GlobalScope])//This is the argument scope
       2 //Because stack relative loses 1 later
-    }
-    else{
-      inner.size + getParent.getStackFrameOffset
-    }
-  }
+    else
+      inner.size + getParent.getStackFrameOffset)
+
 
   private def getStackAddress(varName: String): Address = StackRelative(getStackOffset(varName))
 
