@@ -1,6 +1,7 @@
 statePtr: word[32]ptr
 nextStatePtr: word[32]ptr
 tempStatePtr: word[32]ptr
+
 golState1: word[32][32]
 golState2: word[32][32]
 

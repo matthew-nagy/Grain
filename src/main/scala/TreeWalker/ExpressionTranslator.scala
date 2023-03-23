@@ -196,7 +196,7 @@ object ExpressionTranslator {
         val functionSymbol = scope.getSymbol(funcToken.lexeme)
         val functionDefinitionLine = functionSymbol.lineNumber.toString
         AccumulatorLocation(
-          buffer.append(IR.JumpLongSaveReturn(Label("func_" ++ funcToken.lexeme ++ "_l" ++ functionDefinitionLine)))
+          buffer.append(IR.JumpLongSaveReturn(Label("func_" ++ funcToken.lexeme)))
         )
       case _ => throw new Exception("Cannot call type at this time")
     buffer.append(scope.getFixStackDecay())
@@ -254,7 +254,7 @@ object ExpressionTranslator {
             buffer.append(getRegisterShifts(left, right, IR.ShiftRight(AReg()), scope))
           case x if Operation.Groups.RelationalTokens.contains(x) =>
             scope.rememberStackLocation()
-            val conditionCode = StatementTranslator.getConditionCode(expr, scope, Label("++"), StatementTranslator.BranchType.IfFalse)
+            val conditionCode = StatementTranslator.getConditionCode(expr, scope, Label("++"), StatementTranslator.BranchType.IfFalse, 0)
             val setTrueThenToEnd = IR.Load(Immediate(1), AReg()).addComment(expr.toString ++ "is true") :: IR.BranchShort(Label("+++")) :: Nil
             val setFalseAndEnd = IR.PutLabel(Label("++")) :: IR.Load(Immediate(0), AReg()).addComment("Its false") :: IR.PutLabel(Label("+++")).addComment("End Binary check, clear stack beneath") :: Nil
             val fixStack = scope.getFixStackDecay().toList

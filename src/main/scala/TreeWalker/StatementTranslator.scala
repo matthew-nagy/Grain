@@ -15,38 +15,45 @@ object StatementTranslator {
     ExpressionTranslator.getFromAccumulator(e, scope).toGetThere.toList
 
   //Can break the stack
-  def getConditionCode(expr: Expr.Expr, scope: TranslatorScope, toBranchTo: Label, branchType: BranchType): List[IR.Instruction] = {
-    val uncommentedConditionalCode = expr match
-      case Expr.BinaryOp(op, left, right) if Operation.Groups.RelationalTokens.contains(op) =>
-        val leftStack = ExpressionTranslator.getFromStack(left, scope)
-        val rightToAcc = toAccumulator(right, scope)
-        val trueOp = if(branchType == BranchType.IfTrue) op else Operation.Groups.oppositeMap(op)
-        val compareAndReset = (IR.Compare(leftStack.address, AReg()) :: Nil)
-        val branch = trueOp match
-          case Operation.Binary.Equal => IR.BranchIfEqual(toBranchTo) :: Nil
-          case Operation.Binary.NotEqual => IR.BranchIfNotEqual(toBranchTo) :: Nil
-          case Operation.Binary.Greater => IR.BranchIfNoCarry(toBranchTo) :: Nil
-          case Operation.Binary.GreaterEqual => IR.BranchIfNoCarry(toBranchTo) :: IR.BranchIfEqual(toBranchTo) :: Nil
-          case Operation.Binary.Less =>
-            IR.BranchIfEqual(Label("+")) :: IR.BranchIfCarrySet(toBranchTo) ::
-              IR.PutLabel(Label("+")) :: Nil
-          case Operation.Binary.LessEqual => IR.BranchIfCarrySet(toBranchTo) :: Nil
-          case _ => throw new Exception("Relational operator " ++ trueOp.toString ++ " is not recognised")
+  def getConditionCode(expr: Expr.Expr, scope: TranslatorScope, toBranchTo: Label, branchType: BranchType, estimatedJumpLength: Int): List[IR.Instruction] = {
+    if(estimatedJumpLength >= GlobalData.snesData.maxConditionalJumpLength){
+      val interimLabel = Label("JMP_not_taken_to_"++toBranchTo.name)
+      val primaryConditionCode = getConditionCode(expr, scope, interimLabel, if(branchType == BranchType.IfTrue)BranchType.IfFalse else BranchType.IfTrue, 0)
+      primaryConditionCode ::: (IR.JumpShortWithoutReturn(toBranchTo) :: IR.PutLabel(interimLabel) :: Nil)
+    }
+    else {
+      val uncommentedConditionalCode = expr match
+        case Expr.BinaryOp(op, left, right) if Operation.Groups.RelationalTokens.contains(op) =>
+          val leftStack = ExpressionTranslator.getFromStack(left, scope)
+          val rightToAcc = toAccumulator(right, scope)
+          val trueOp = if (branchType == BranchType.IfTrue) op else Operation.Groups.oppositeMap(op)
+          val compareAndReset = (IR.Compare(leftStack.address, AReg()) :: Nil)
+          val branch = trueOp match
+            case Operation.Binary.Equal => IR.BranchIfEqual(toBranchTo) :: Nil
+            case Operation.Binary.NotEqual => IR.BranchIfNotEqual(toBranchTo) :: Nil
+            case Operation.Binary.Greater => IR.BranchIfNoCarry(toBranchTo) :: Nil
+            case Operation.Binary.GreaterEqual => IR.BranchIfNoCarry(toBranchTo) :: IR.BranchIfEqual(toBranchTo) :: Nil
+            case Operation.Binary.Less =>
+              IR.BranchIfEqual(Label("+")) :: IR.BranchIfCarrySet(toBranchTo) ::
+                IR.PutLabel(Label("+")) :: Nil
+            case Operation.Binary.LessEqual => IR.BranchIfCarrySet(toBranchTo) :: Nil
+            case _ => throw new Exception("Relational operator " ++ trueOp.toString ++ " is not recognised")
 
-        leftStack.toGetThere.toList ::: rightToAcc ::: compareAndReset ::: branch
-      case _ =>
-        val conditionCode = toAccumulator(expr, scope)
-        val branchCondition =IR.Compare(Immediate(1), AReg()) ::
-          (if(branchType == BranchType.IfTrue)
-            IR.BranchIfEqual(toBranchTo)
-          else
-            IR.BranchIfNotEqual(toBranchTo)
-          ) :: Nil
-        conditionCode ::: branchCondition
+          leftStack.toGetThere.toList ::: rightToAcc ::: compareAndReset ::: branch
+        case _ =>
+          val conditionCode = toAccumulator(expr, scope)
+          val branchCondition = IR.Compare(Immediate(1), AReg()) ::
+            (if (branchType == BranchType.IfTrue)
+              IR.BranchIfEqual(toBranchTo)
+            else
+              IR.BranchIfNotEqual(toBranchTo)
+              ) :: Nil
+          conditionCode ::: branchCondition
 
-    uncommentedConditionalCode.head.addComment("Condition: " ++ expr.toString) ::
-      uncommentedConditionalCode.tail.init.toList :::
-      (uncommentedConditionalCode.last.addComment("End of condition, either branched if " ++ branchType.toString ++ " or fallen through") :: Nil)
+      uncommentedConditionalCode.head.addComment("Condition: " ++ expr.toString) ::
+        uncommentedConditionalCode.tail.init.toList :::
+        (uncommentedConditionalCode.last.addComment("End of condition, either branched if " ++ branchType.toString ++ " or fallen through") :: Nil)
+    }
   }
 
   private def translateStatement(stmt: Statement, scope: TranslatorScope): IRBuffer = {
@@ -67,29 +74,39 @@ object StatementTranslator {
         val startCode = if(startStmt.isDefined) translateStatement(startStmt.get, forScope).toList else Nil
         var fixConditionStack = List.empty[IR.Instruction]
         var breakCode = List.empty[IR.Instruction]
+        var forBodyCode = translateStatement(body, forScope).toList
         if(breakExpr.isDefined) {
           scope.rememberStackLocation()
-          breakCode = getConditionCode(breakExpr.get, forScope, endForLabel, BranchType.IfFalse)
+          breakCode = getConditionCode(breakExpr.get, forScope, endForLabel, BranchType.IfFalse, IR.sizeOfIr(forBodyCode))
+          forBodyCode = IR.getWithStackOffset(forBodyCode, scope.getStackDecaySize)
           fixConditionStack = scope.getFixStackDecay().toList
         }
         val incCode = if(incrimentExpr.isDefined) ExpressionTranslator.getFromAccumulator(incrimentExpr.get, forScope).toGetThere.toList else Nil
-        val forBodyCode = translateStatement(body, forScope).toList
-          forScope.extendStack() ::: startCode ::: (IR.PutLabel(startForLabel) :: Nil) ::: breakCode ::: fixConditionStack :::
-          forBodyCode ::: incCode ::: (IR.BranchShort(startForLabel) :: IR.PutLabel(endForLabel) :: Nil) :::
-          forScope.reduceStack() ::: fixConditionStack
+
+        forScope.extendStack() ::: startCode ::: (IR.PutLabel(startForLabel) :: Nil) ::: breakCode ::: fixConditionStack :::
+        forBodyCode ::: incCode ::: (IR.BranchShort(startForLabel) :: IR.PutLabel(endForLabel) :: Nil) :::
+        forScope.reduceStack() ::: fixConditionStack
       case If(condition, body, elseBranch, lineNumber) =>
         val elseStartLabel = Label("Else_l" ++ lineNumber.toString)
         val ifEndLabel = Label("If_End_l" ++ lineNumber.toString)
         val ifScope = scope.getChild(stmt)
-        val ifEnder = if(elseBranch.isDefined) IR.BranchShort(ifEndLabel) :: Nil else Nil
+        val elseBody: List[IR.Instruction] = (if(elseBranch.isDefined) translateStatement(elseBranch.get, ifScope).toList else Nil)
+        val bodyCode = translateStatement(body, ifScope).toList
+        val ifEnder = if (elseBranch.isDefined)
+            (if(IR.sizeOfIr(elseBody) > GlobalData.snesData.maxConditionalJumpLength)
+              IR.BranchLong(ifEndLabel)
+            else
+              IR.BranchShort(ifEndLabel))
+            :: Nil
+          else Nil
 
         ifScope.rememberStackLocation()
         ifScope.extendStack() :::
-        getConditionCode(condition, ifScope, elseStartLabel, BranchType.IfFalse) :::
-        translateStatement(body, ifScope).toList :::
+        getConditionCode(condition, ifScope, elseStartLabel, BranchType.IfFalse, IR.sizeOfIr(bodyCode)) :::
+        IR.getWithStackOffset(bodyCode, ifScope.getStackDecaySize) :::
         ifEnder :::
         (IR.PutLabel(elseStartLabel) :: Nil) :::
-        (if(elseBranch.isDefined) translateStatement(elseBranch.get, ifScope).toList else Nil) :::
+        IR.getWithStackOffset(elseBody, ifScope.getStackDecaySize) :::
         (IR.PutLabel(ifEndLabel) :: Nil) :::
         ifScope.reduceStack() :::
         ifScope.getFixStackDecay().toList
@@ -127,7 +144,7 @@ object StatementTranslator {
         val whileStart = whileScope.extendStack() :::
           (IR.PutLabel(startLabel) :: Nil)
         scope.rememberStackLocation()
-        val whileCondition = getConditionCode(condition, scope, endLabel, BranchType.IfFalse).toList
+        val whileCondition = getConditionCode(condition, scope, endLabel, BranchType.IfFalse, IR.sizeOfIr(bodyCode))
         val fixStack = scope.getFixStackDecay().toList
 
         whileStart ::: whileCondition ::: fixStack ::: bodyCode.toList :::

@@ -22,6 +22,7 @@ object GlobalData {
   object snesData{
     val bankSize = 65536
     val generalInstructionSize = 3
+    val maxConditionalJumpLength = 128
 
     val fileStart: List[String] = List(
       ".include \"Header.inc\"",

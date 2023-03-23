@@ -18,13 +18,6 @@ object GrainTranslator {
     private val functionCode = ListBuffer.empty[IRBuffer]
     private val ROMData = ListBuffer.empty[DataCode]
 
-    def getSizeOfBufferCode(buffer: IRBuffer): Int =
-      buffer.toList.map(ir =>
-        ir match
-          case _: IR.ZeroSizeInstruction => 0
-          case _: IR.Instruction => GlobalData.snesData.generalInstructionSize
-      ).sum
-
     private def append(result: Result): Unit =
       result match
         case Nothing() => return
@@ -49,7 +42,7 @@ object GrainTranslator {
 
       val bankedBuffers = (
         for buffer <- unbankedBuffers yield{
-          val codeSize = getSizeOfBufferCode(buffer)
+          val codeSize = IR.sizeOfIr(buffer)
           val codeList = buffer.toList
           if(currentBankSize + codeSize >= GlobalData.snesData.bankSize){//Need a new bank
             currentBank += 1
@@ -87,35 +80,40 @@ object GrainTranslator {
       case VariableDecl(assignment) =>
         GlobalsCode(ExpressionTranslator.getFromAccumulator(assignment, TranslatorScope(scope)).toGetThere) :: Nil
       case FunctionDecl(funcSymbol, _, body) =>
-        val functionScope = scope.getChild(topLevel).getChild(body)
-        val tFuncScope = TranslatorScope(functionScope)
-        val defaultFuncLabel = "func_" ++ funcSymbol.name ++ "_l" ++ funcSymbol.lineNumber.toString
-        val functionStart = funcSymbol.name match
-          case "main" => IR.PutLabel(Label("main_function")) :: Nil
-          case "VBlank" => IR.PutLabel(Label("VBlank")) :: IR.PushRegister(AReg()) :: IR.PushRegister(XReg()) :: IR.PushRegister(YReg()) ::
-            IR.PushProcessorStatus() :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil
-          case _ => IR.PutLabel(Label(defaultFuncLabel)) :: Nil
+        val defaultFuncLabel = "func_" ++ funcSymbol.name
 
-        val saveStack = IR.TransferToX(StackPointerReg()) :: IR.PushRegister(XReg()).addComment("Record stack frame") :: Nil
+        body match
+          case asmBody: Stmt.Assembly =>
+            FunctionCode(IRBuffer().append(IR.PutLabel(Label(defaultFuncLabel)) :: IR.UserAssembly(asmBody.assembly) :: Nil).append(IR.Spacing())):: Nil
+          case blockBody: Stmt.Block =>
+            val functionScope = scope.getChild(topLevel).getChild(body)
+            val tFuncScope = TranslatorScope(functionScope)
+            val functionStart = funcSymbol.name match
+              case "main" => IR.PutLabel(Label("main_function")) :: Nil
+              case "VBlank" => IR.PutLabel(Label("VBlank")) :: IR.PushRegister(AReg()) :: IR.PushRegister(XReg()) :: IR.PushRegister(YReg()) ::
+                IR.PushProcessorStatus() :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil
+              case _ => IR.PutLabel(Label(defaultFuncLabel)) :: Nil
 
-        val prepareStack = tFuncScope.extendStack()
+            val saveStack = IR.TransferToX(StackPointerReg()) :: IR.PushRegister(XReg()).addComment("Record stack frame") :: Nil
 
-        val translatedBody =
-          body.statements
-            .map(StatementTranslator(_, tFuncScope))
-            .foldLeft(IRBuffer())(_.append(_))
+            val prepareStack = tFuncScope.extendStack()
 
-        val fixStack = IR.Load(StackRelative(tFuncScope.getStackFrameOffset), AReg()).addComment("Fix stack before return") ::
-          IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
+            val translatedBody =
+              blockBody.statements
+                .map(StatementTranslator(_, tFuncScope))
+                .foldLeft(IRBuffer())(_.append(_))
 
-        val funcEnd = funcSymbol.name match
-          case "main" => IR.StopClock().addComment("At the end of main") :: Nil
-          case "VBlank" => IR.PullProcessorStatus() :: IR.PopRegister(YReg()) :: IR.PopRegister(XReg()) :: IR.PopRegister(AReg()) :: IR.ReturnFromInterrupt() :: Nil
-          case _ => IR.ReturnLong() :: Nil
+            val fixStack = IR.Load(StackRelative(tFuncScope.getStackFrameOffset), AReg()).addComment("Fix stack before return") ::
+              IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
 
-        val instructionList = functionStart ::: saveStack ::: prepareStack ::: translatedBody.toList ::: fixStack ::: funcEnd
+            val funcEnd = funcSymbol.name match
+              case "main" => IR.StopClock().addComment("At the end of main") :: Nil
+              case "VBlank" => IR.PullProcessorStatus() :: IR.PopRegister(YReg()) :: IR.PopRegister(XReg()) :: IR.PopRegister(AReg()) :: IR.ReturnFromInterrupt() :: Nil
+              case _ => IR.ReturnLong() :: Nil
 
-        FunctionCode(IRBuffer().append(instructionList).append(IR.Spacing())) :: Nil
+            val instructionList = functionStart ::: saveStack ::: prepareStack ::: translatedBody.toList ::: fixStack ::: funcEnd
+
+            FunctionCode(IRBuffer().append(instructionList).append(IR.Spacing())) :: Nil
       case Load(varName, palleteName, filename, references) =>
         val spriteSheetForm = scope.getSymbol(varName.lexeme).form.asInstanceOf[Symbol.Data]
         val paletteForm = scope.getSymbol(palleteName.lexeme).form.asInstanceOf[Symbol.Data]
@@ -135,7 +133,8 @@ object GrainTranslator {
 
     //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/GrainTest.txt"))
     //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/fragment.txt"))
-    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/array2d.txt"))
+    //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/array2d.txt"))
+    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/GrainLib/Random.grain"))
     val symbolTable = new SymbolTable
 
     val topLevels = ListBuffer.empty[Stmt.TopLevel]

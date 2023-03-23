@@ -1,0 +1,6 @@
+
+//backgroundNumber is 1-4
+func setBackgroundScroll(backgroundNumber: word, xScroll: word, yScroll: word) asm{
+    "lda 8, s"
+    ""
+}

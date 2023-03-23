@@ -21,7 +21,7 @@ object Symbol{
   sealed trait StackStored(var stackOffset: Int = 0)
 
   case class GlobalVariable(var location: Int = 0) extends SymbolForm
-  case class FunctionDefinition() extends SymbolForm
+  case class FunctionDefinition(isAllAssembly: Boolean) extends SymbolForm
   case class Argument() extends SymbolForm with StackStored(0)
   case class Variable() extends SymbolForm with StackStored(0)
   case class Data(values: List[String], var dataSize: Int, var dataBank: Int = 0) extends SymbolForm

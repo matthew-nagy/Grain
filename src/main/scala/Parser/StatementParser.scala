@@ -37,7 +37,7 @@ object StatementParser {
       else statement
     }
 
-  private def parseAssembly(scope: Scope, tokenBuffer: TokenBuffer): Stmt.Assembly = {
+  def parseAssembly(scope: Scope, tokenBuffer: TokenBuffer): Stmt.Assembly = {
     tokenBuffer.matchType(TokenType.Assembly)
     tokenBuffer.matchType(TokenType.LeftBrace)
     val assemblyContent = ListBuffer.empty[String]
@@ -179,7 +179,8 @@ object StatementParser {
       case Else(_) => throw Exception("Else branch shouldn't be triggered; handle in the if")
       case If(condition, body, elseBranch, _) =>
         ExpressionParser.typeCheck(condition, scope)
-        typeCheck(body, scope.getChildOrThis(statement))
+        val ifScope = scope.getChildOrThis(statement)
+        typeCheck(body, ifScope)
         if(!Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType())){
           throw Errors.badlyTyped(
             "Expected boolean, " ++ condition.toString ++ " had type " ++ scope.getTypeOf(condition).toString
@@ -187,7 +188,7 @@ object StatementParser {
         }
         elseBranch match
           case None =>
-          case Some(elseStmt) => typeCheck(elseStmt.body, scope.getChildOrThis(elseStmt))
+          case Some(elseStmt) => typeCheck(elseStmt.body, ifScope.getChildOrThis(elseStmt))
       case Return(Some(expr)) =>
         ExpressionParser.typeCheck(expr, scope)
         if(!Utility.typeEquivilent(scope.getTypeOf(expr), scope.getReturnType)){

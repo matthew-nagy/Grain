@@ -1,0 +1,64 @@
+func setSeed(value: word) asm{
+    "lda 4, s"
+    "sta $A"
+    "rtl"
+}
+
+func seedWithInput() asm{
+    "lda $4219"
+    "asl"
+    "asl"
+    "eor $4219"
+    "ora $A"
+    "sta $A"
+}
+
+func lastRandom():word asm{
+    "lda $A"
+    "rtl"
+}
+
+func randomBool():bool asm{
+    "jsl func_random"
+    "and #1"
+    "rtl"
+}
+
+func randomByte(): word asm{
+    "jsl func_random"
+    "and #$FF"
+    "rtl"
+}
+
+func random():word asm{
+    "sep #$30"
+
+    "lda $B"
+    "tay"
+    "lsr"
+    "lsr"
+    "lsr"
+    "sta $B"
+    "lsr"
+    "eor $B"
+    "lsr"
+    "eor $B"
+    "eor $A"
+    "sta $B"
+
+    "tya"
+    "sta $A"
+    "asl"
+    "eor $A"
+    "asl"
+    "eor $A"
+    "asl"
+    "asl"
+    "asl"
+    "eor $A"
+    "sta $A"
+
+    "rep #$30"
+    "lda $A"
+    "rtl"
+}

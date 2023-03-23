@@ -17,7 +17,7 @@ package Stmt:
                   startStmt: Option[Statement], breakExpr: Option[Expr.Expr],
                   incrimentExpr: Option[Expr.Expr], body: Statement, lineNumber: Int
                 ) extends Statement
-  case class FunctionDecl(funcSymbol: Symbol, arguments: List[Symbol], body: Block) extends TopLevel
+  case class FunctionDecl(funcSymbol: Symbol, arguments: List[Symbol], body: Block | Assembly) extends TopLevel
 
   case class Else(body: Statement) extends Statement
   case class If(condition: Expr.Expr, body: Statement, elseBranch: Option[Else], lineNumber: Int) extends Statement

@@ -166,6 +166,7 @@ object TopLevelParser{
     val functionScope = scope.newFunctionChild()
 
     val funcName = tokenBuffer.matchType(TokenType.Identifier)
+
     val arguments = parseFunctionArguments(functionScope, tokenBuffer)
     val returnType = tokenBuffer.peekType match
       case TokenType.Colon =>
@@ -178,16 +179,18 @@ object TopLevelParser{
     val funcSymbol = scope.addSymbol(
       funcName,
       Utility.FunctionPtr(arguments.map(_.dataType), returnType),
-      Symbol.FunctionDefinition())
+      Symbol.FunctionDefinition(tokenBuffer.peekType == TokenType.Assembly))
 
-    if(tokenBuffer.peekType != TokenType.LeftBrace){
-      Stmt.EmptyStatement()
-    }
-    else{
-      val funcStmt = Stmt.FunctionDecl(funcSymbol, arguments, StatementParser.parseBlock(functionScope, tokenBuffer))
-      scope.linkStatementWithScope(funcStmt, functionScope)
-      funcStmt
-    }
+    tokenBuffer.peekType match
+      case TokenType.Assembly =>
+        val funcStmt = Stmt.FunctionDecl(funcSymbol, arguments, StatementParser.parseAssembly(functionScope, tokenBuffer))
+        scope.linkStatementWithScope(funcStmt, functionScope)
+        funcStmt
+      case TokenType.LeftBrace =>
+        val funcStmt = Stmt.FunctionDecl(funcSymbol, arguments, StatementParser.parseBlock(functionScope, tokenBuffer))
+        scope.linkStatementWithScope(funcStmt, functionScope)
+        funcStmt
+      case _ => Stmt.EmptyStatement()
   }
 
   private def parseReferencing(tokenBuffer: TokenBuffer): List[Stmt.PaletteReference] = {

@@ -34,6 +34,9 @@ class TranslatorScope(private val innerScope: Scope) {
     buffer
   }
 
+  def getStackDecaySize: Int =
+    pushesToTheStack - stackFrames.top
+
   @tailrec
   private def getOffsetToReturnAddress(currentOffset: Int): Int =
     innerScope match

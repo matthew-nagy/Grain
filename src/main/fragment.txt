@@ -23,3 +23,30 @@ func updateCell(x: word, y: word){
 
     nextStatePtr[y][x] = nextVal //statePtr[y][x]
 }
+
+func longBoiTest(){
+    value: word = 10
+    for i: word = 0; i == 200; i = i + 1 do{
+        if value == 10 then{
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+        }
+        else{
+            anythingElse: word = 25
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+            statePtr[0][i] = nextStatePtr[i][i] + 5
+        }
+    }
+}

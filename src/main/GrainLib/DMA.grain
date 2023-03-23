@@ -1,0 +1,5 @@
+func setVramTarget(targetLocation: word) asm{
+    "lda 4, s"
+    "sta $2116"
+    "rtl"
+}

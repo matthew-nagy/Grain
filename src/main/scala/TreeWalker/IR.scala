@@ -20,6 +20,7 @@ case class StackPointerReg() extends TargetOrStackReg
 
 sealed trait Operand
 case class Immediate(value: Int) extends Operand with ImmediateOrAddress
+case class ImmediateLabel(label: Label) extends Operand with ImmediateOrAddress
 case class Label(name: String) extends Operand
 sealed trait Address extends Operand with ImmediateOrAddress with AccumulatorOrAddress
 case class Direct(address: Int) extends Address
@@ -29,6 +30,20 @@ case class DirectIndexedIndirect(address: Int, by: GeneralPurposeReg) extends Ad
 case class DirectIndirectIndexed(address: Int, by: GeneralPurposeReg) extends Address
 case class StackRelative(offset: Int) extends Address
 case class StackRelativeIndirectIndexed(offset: Int, by: GeneralPurposeReg) extends Address
+
+def getAddressWithAlteredStack(value: Address, stackChange: Int): Address =
+  value match
+    case StackRelative(offset) => StackRelative(offset + stackChange)
+    case StackRelativeIndirectIndexed(offset, by) => StackRelativeIndirectIndexed(offset + stackChange, by)
+    case _ => value
+def getAddressWithAlteredStack(value: ImmediateOrAddress, stackChange: Int): ImmediateOrAddress =
+  value match
+    case asAddress: Address => getAddressWithAlteredStack(asAddress, stackChange)
+    case _ => value
+def getAddressWithAlteredStack(value: AccumulatorOrAddress, stackChange: Int): AccumulatorOrAddress =
+  value match
+    case asAddress: Address => getAddressWithAlteredStack(asAddress, stackChange)
+    case _ => value
 
 package IR:
   sealed trait Instruction{
@@ -147,5 +162,42 @@ package IR:
   case class PutLabel(labelName: Label) extends Misc with ZeroSizeInstruction
   case class UserAssembly(code: List[String]) extends Misc
   case class Spacing() extends Misc with ZeroSizeInstruction
-  case class Bank(bankName: Int) extends Misc
+  case class Bank(bankName: Int) extends Misc with ZeroSizeInstruction
   case class UserData(dataName: String, data: List[String]) extends Misc
+
+
+  def sizeOfIr(instruction: Instruction): Int =
+    instruction match
+      case UserAssembly(list) => list.length * 3
+      case UserData(_, data) => data.length * 6 //Just because I guess thats how I did it with .dw
+      case _: ZeroSizeInstruction => 0
+      case _ => 3
+
+  def sizeOfIr(buffer: List[Instruction]): Int = buffer.map(sizeOfIr).sum
+  def sizeOfIr(buffer: IRBuffer): Int = sizeOfIr(buffer.toList)
+
+/*
+
+*/
+  def getWithStackOffset(instruction: Instruction, stackOffset: Int): Instruction =
+    instruction match
+      case AddCarry(op) => AddCarry(getAddressWithAlteredStack(op, stackOffset))
+      case SubtractCarry(op) => SubtractCarry(getAddressWithAlteredStack(op, stackOffset))
+      case AND(op) => AND(getAddressWithAlteredStack(op, stackOffset))
+      case EOR(op) => EOR(getAddressWithAlteredStack(op, stackOffset))
+      case ORA(op) => ORA(getAddressWithAlteredStack(op, stackOffset))
+      case ShiftLeft(op) => ShiftLeft(getAddressWithAlteredStack(op, stackOffset))
+      case ShiftRight(op) => ShiftRight(getAddressWithAlteredStack(op, stackOffset))
+      case RotateLeft(op) => RotateLeft(getAddressWithAlteredStack(op, stackOffset))
+      case RotateRight(op) => RotateRight(getAddressWithAlteredStack(op, stackOffset))
+      case BitTest(op) => BitTest(getAddressWithAlteredStack(op, stackOffset))
+      case IncrementMemory(mem) => IncrementMemory(getAddressWithAlteredStack(mem, stackOffset))
+      case DecrementMemory(mem) => DecrementMemory(getAddressWithAlteredStack(mem, stackOffset))
+      case Load(op, reg) => Load(getAddressWithAlteredStack(op, stackOffset), reg)
+      case Store(address, reg) => Store(getAddressWithAlteredStack(address, stackOffset), reg)
+      case SetZero(address) => SetZero(getAddressWithAlteredStack(address, stackOffset))
+      case Compare(address, reg) => Compare(getAddressWithAlteredStack(address, stackOffset), reg)
+      case PushAddress(address) => PushAddress(getAddressWithAlteredStack(address, stackOffset))
+      case _ => instruction
+  def getWithStackOffset(instructions: List[Instruction], stackOffset: Int): List[Instruction] =
+    instructions.map(instruction => getWithStackOffset(instruction, stackOffset))
