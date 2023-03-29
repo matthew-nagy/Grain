@@ -1,52 +1,13 @@
-statePtr: word[32]ptr
-nextStatePtr: word[32]ptr
-setup: bool = false
-alive: word = 5
-dead: word = 0
+gameWorld: word[1024]
 
-frameCount: word = 0
+func setupGameWorld(){
+    skyCellIndex: word = 0
+    floorCellIndex: word = 5
+    i: word = 0
+    for ; i < 768; i = i + 1 do
+        gameWorld[i] = skyCellIndex
 
-cellAlivePoint: word = 0xB000
-
-func calculateAliveNeighbours(x: word, y: word): word{
-    return 0
+    for ; i < 1024; i = i + 1 do
+        gameWorld[i] = floorCellIndex
 }
 
-func updateCell(x: word, y: word){
-    aliveNeighbours: word = calculateAliveNeighbours(x, y)
-    nextVal: word = dead
-    if statePtr[y][x] == alive then{
-        if aliveNeighbours == 2 or aliveNeighbours == 3 then
-            nextVal = alive
-    }
-    else if aliveNeighbours == 3 then nextVal = alive
-
-    nextStatePtr[y][x] = nextVal //statePtr[y][x]
-}
-
-func longBoiTest(){
-    value: word = 10
-    for i: word = 0; i == 200; i = i + 1 do{
-        if value == 10 then{
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-        }
-        else{
-            anythingElse: word = 25
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-            statePtr[0][i] = nextStatePtr[i][i] + 5
-        }
-    }
-}

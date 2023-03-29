@@ -179,25 +179,25 @@ package IR:
 /*
 
 */
-  def getWithStackOffset(instruction: Instruction, stackOffset: Int): Instruction =
-    instruction match
-      case AddCarry(op) => AddCarry(getAddressWithAlteredStack(op, stackOffset))
-      case SubtractCarry(op) => SubtractCarry(getAddressWithAlteredStack(op, stackOffset))
-      case AND(op) => AND(getAddressWithAlteredStack(op, stackOffset))
-      case EOR(op) => EOR(getAddressWithAlteredStack(op, stackOffset))
-      case ORA(op) => ORA(getAddressWithAlteredStack(op, stackOffset))
-      case ShiftLeft(op) => ShiftLeft(getAddressWithAlteredStack(op, stackOffset))
-      case ShiftRight(op) => ShiftRight(getAddressWithAlteredStack(op, stackOffset))
-      case RotateLeft(op) => RotateLeft(getAddressWithAlteredStack(op, stackOffset))
-      case RotateRight(op) => RotateRight(getAddressWithAlteredStack(op, stackOffset))
-      case BitTest(op) => BitTest(getAddressWithAlteredStack(op, stackOffset))
-      case IncrementMemory(mem) => IncrementMemory(getAddressWithAlteredStack(mem, stackOffset))
-      case DecrementMemory(mem) => DecrementMemory(getAddressWithAlteredStack(mem, stackOffset))
-      case Load(op, reg) => Load(getAddressWithAlteredStack(op, stackOffset), reg)
-      case Store(address, reg) => Store(getAddressWithAlteredStack(address, stackOffset), reg)
-      case SetZero(address) => SetZero(getAddressWithAlteredStack(address, stackOffset))
-      case Compare(address, reg) => Compare(getAddressWithAlteredStack(address, stackOffset), reg)
-      case PushAddress(address) => PushAddress(getAddressWithAlteredStack(address, stackOffset))
-      case _ => instruction
-  def getWithStackOffset(instructions: List[Instruction], stackOffset: Int): List[Instruction] =
-    instructions.map(instruction => getWithStackOffset(instruction, stackOffset))
+//  def getWithStackOffset(instruction: Instruction, stackOffset: Int): Instruction =
+//    instruction match
+//      case AddCarry(op) => AddCarry(getAddressWithAlteredStack(op, stackOffset))
+//      case SubtractCarry(op) => SubtractCarry(getAddressWithAlteredStack(op, stackOffset))
+//      case AND(op) => AND(getAddressWithAlteredStack(op, stackOffset))
+//      case EOR(op) => EOR(getAddressWithAlteredStack(op, stackOffset))
+//      case ORA(op) => ORA(getAddressWithAlteredStack(op, stackOffset))
+//      case ShiftLeft(op) => ShiftLeft(getAddressWithAlteredStack(op, stackOffset))
+//      case ShiftRight(op) => ShiftRight(getAddressWithAlteredStack(op, stackOffset))
+//      case RotateLeft(op) => RotateLeft(getAddressWithAlteredStack(op, stackOffset))
+//      case RotateRight(op) => RotateRight(getAddressWithAlteredStack(op, stackOffset))
+//      case BitTest(op) => BitTest(getAddressWithAlteredStack(op, stackOffset))
+//      case IncrementMemory(mem) => IncrementMemory(getAddressWithAlteredStack(mem, stackOffset))
+//      case DecrementMemory(mem) => DecrementMemory(getAddressWithAlteredStack(mem, stackOffset))
+//      case Load(op, reg) => Load(getAddressWithAlteredStack(op, stackOffset), reg)
+//      case Store(address, reg) => Store(getAddressWithAlteredStack(address, stackOffset), reg)
+//      case SetZero(address) => SetZero(getAddressWithAlteredStack(address, stackOffset))
+//      case Compare(address, reg) => Compare(getAddressWithAlteredStack(address, stackOffset), reg)
+//      case PushAddress(address) => PushAddress(getAddressWithAlteredStack(address, stackOffset))
+//      case _ => instruction
+//  def getWithStackOffset(instructions: List[Instruction], stackOffset: Int): List[Instruction] =
+//    instructions.map(instruction => getWithStackOffset(instruction, stackOffset))

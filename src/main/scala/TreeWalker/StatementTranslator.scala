@@ -52,7 +52,7 @@ object StatementTranslator {
 
       uncommentedConditionalCode.head.addComment("Condition: " ++ expr.toString) ::
         uncommentedConditionalCode.tail.init.toList :::
-        (uncommentedConditionalCode.last.addComment("End of condition, either branched if " ++ branchType.toString ++ " or fallen through") :: Nil)
+        (uncommentedConditionalCode.last.addComment("End of condition (" ++expr.toString ++ "), either branched if " ++ branchType.toString ++ " or fallen through") :: Nil)
     }
   }
 
@@ -78,7 +78,7 @@ object StatementTranslator {
         if(breakExpr.isDefined) {
           scope.rememberStackLocation()
           breakCode = getConditionCode(breakExpr.get, forScope, endForLabel, BranchType.IfFalse, IR.sizeOfIr(forBodyCode))
-          forBodyCode = IR.getWithStackOffset(forBodyCode, scope.getStackDecaySize)
+          forBodyCode = translateStatement(body, forScope).toList
           fixConditionStack = scope.getFixStackDecay().toList
         }
         val incCode = if(incrimentExpr.isDefined) ExpressionTranslator.getFromAccumulator(incrimentExpr.get, forScope).toGetThere.toList else Nil
@@ -91,7 +91,7 @@ object StatementTranslator {
         val ifEndLabel = Label("If_End_l" ++ lineNumber.toString)
         val ifScope = scope.getChild(stmt)
         val elseBody: List[IR.Instruction] = (if(elseBranch.isDefined) translateStatement(elseBranch.get, ifScope).toList else Nil)
-        val bodyCode = translateStatement(body, ifScope).toList
+        val sizeUpBodyCode = translateStatement(body, ifScope).toList
         val ifEnder = if (elseBranch.isDefined)
             (if(IR.sizeOfIr(elseBody) > GlobalData.snesData.maxConditionalJumpLength)
               IR.BranchLong(ifEndLabel)
@@ -102,11 +102,11 @@ object StatementTranslator {
 
         ifScope.rememberStackLocation()
         ifScope.extendStack() :::
-        getConditionCode(condition, ifScope, elseStartLabel, BranchType.IfFalse, IR.sizeOfIr(bodyCode)) :::
-        IR.getWithStackOffset(bodyCode, ifScope.getStackDecaySize) :::
+        getConditionCode(condition, ifScope, elseStartLabel, BranchType.IfFalse, IR.sizeOfIr(sizeUpBodyCode)) :::
+        translateStatement(body, ifScope).toList ::://Re-translate the body code
         ifEnder :::
         (IR.PutLabel(elseStartLabel) :: Nil) :::
-        IR.getWithStackOffset(elseBody, ifScope.getStackDecaySize) :::
+        (if(elseBranch.isDefined) translateStatement(elseBranch.get, ifScope).toList else Nil) ::://Re-translate the else code
         (IR.PutLabel(ifEndLabel) :: Nil) :::
         ifScope.reduceStack() :::
         ifScope.getFixStackDecay().toList
@@ -158,7 +158,8 @@ object StatementTranslator {
   def apply(stmt: Statement, scope:TranslatorScope): IRBuffer = translateStatement(stmt, scope.getChild(stmt))
 
   def main(args: Array[String]): Unit = {
-    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/StatementParserTest.txt"))
+    val filename = "src/main/StatementParserTest.txt"
+    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename)
     val symbolTable = new SymbolTable
     val funcScope = symbolTable.globalScope.newFunctionChild()
     funcScope.setReturnType(Utility.Word())

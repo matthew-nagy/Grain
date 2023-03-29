@@ -31,7 +31,7 @@ object StatementParser {
             parseVariableDecl(scope, tokenBuffer, false)
           else
             parseExpression(scope, tokenBuffer)
-      typeCheck(statement, scope)
+      typeCheck(tokenBuffer.getFilename, statement, scope)
 
       if GlobalData.optimisationFlags.staticOptimiseTree then OptimiseStatement(statement)
       else statement
@@ -125,7 +125,7 @@ object StatementParser {
     tokenBuffer.matchType(TokenType.Colon)
     val varType = parseType(scope.symbolTable, tokenBuffer)
     val symbolForm = if(atTopLevel) Symbol.GlobalVariable() else Symbol.Variable()
-    scope.addSymbol(varToken, varType, symbolForm)
+    scope.addSymbol(varToken, varType, symbolForm, tokenBuffer.getFilename)
 
     if(tokenBuffer.peekType != TokenType.Equal){
       Stmt.EmptyStatement()
@@ -149,67 +149,70 @@ object StatementParser {
     whileStmt
   }
 
-  def typeCheck(statement: Stmt.Statement, scope: Scope): Unit = {
+  def typeCheck(filename: String, statement: Stmt.Statement, scope: Scope): Unit = {
     import Stmt.*
     statement match
       case Assembly(assembly) =>
       case Block(statements) =>
         statements.forall(stmt => {
-          typeCheck(stmt, scope.getChildOrThis(statement))
+          typeCheck(filename, stmt, scope.getChildOrThis(statement))
           true
         })
       case EmptyStatement() =>
-      case Expression(expr) => ExpressionParser.typeCheck(expr, scope)
+      case Expression(expr) => ExpressionParser.typeCheck(filename, expr, scope)
       case For(startExpr, breakExpr, incrimentExpr, body, _) =>
         val forScope = scope.getChildOrThis(statement)
         startExpr.exists(value =>{
-          typeCheck(value, forScope)
+          typeCheck(filename, value, forScope)
           true
         })
         breakExpr.exists(value => {
-          ExpressionParser.typeCheck(value, forScope)
+          ExpressionParser.typeCheck(filename, value, forScope)
           true
         })
         incrimentExpr.exists(value => {
-          ExpressionParser.typeCheck(value, forScope)
+          ExpressionParser.typeCheck(filename, value, forScope)
           true
         })
-        typeCheck(body, forScope)
-      case FunctionDecl(_, _, body) => typeCheck(body, scope.getChildOrThis(statement))
+        typeCheck(filename, body, forScope)
+      case FunctionDecl(_, _, body) => typeCheck(filename, body, scope.getChildOrThis(statement))
       case Else(_) => throw Exception("Else branch shouldn't be triggered; handle in the if")
       case If(condition, body, elseBranch, _) =>
-        ExpressionParser.typeCheck(condition, scope)
+        ExpressionParser.typeCheck(filename, condition, scope)
         val ifScope = scope.getChildOrThis(statement)
-        typeCheck(body, ifScope)
+        typeCheck(filename, body, ifScope)
         if(!Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType())){
           throw Errors.badlyTyped(
+            filename,
             "Expected boolean, " ++ condition.toString ++ " had type " ++ scope.getTypeOf(condition).toString
           )
         }
         elseBranch match
           case None =>
-          case Some(elseStmt) => typeCheck(elseStmt.body, ifScope.getChildOrThis(elseStmt))
+          case Some(elseStmt) => typeCheck(filename, elseStmt.body, ifScope.getChildOrThis(elseStmt))
       case Return(Some(expr)) =>
-        ExpressionParser.typeCheck(expr, scope)
+        ExpressionParser.typeCheck(filename, expr, scope)
         if(!Utility.typeEquivilent(scope.getTypeOf(expr), scope.getReturnType)){
-          throw Errors.badlyTyped(expr.toString ++ " has type " ++ scope.getTypeOf(expr).toString ++ " but the stated return type is " ++ scope.getReturnType.toString)
+          throw Errors.badlyTyped(filename, expr.toString ++ " has type " ++ scope.getTypeOf(expr).toString ++ " but the stated return type is " ++ scope.getReturnType.toString)
         }
       case Return(None) =>
       case VariableDecl(Expr.Assign(name, initializer)) =>
-        ExpressionParser.typeCheck(initializer, scope)
+        ExpressionParser.typeCheck(filename, initializer, scope)
         if(!Utility.typeEquivilent(scope(name.lexeme).dataType, scope.getTypeOf(initializer))){
           throw Errors.badlyTyped(
+            filename,
             name.lexeme ++ " of type " ++ scope(name.lexeme).dataType.toString ++ " cannot be innitializeationabled with type " ++ scope.getTypeOf(initializer).toString
           )
         }
       case While(condition, body, _) =>
-        ExpressionParser.typeCheck(condition, scope)
+        ExpressionParser.typeCheck(filename, condition, scope)
         if(!Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType())){
           throw Errors.badlyTyped(
+            filename,
             "RRRRRRRRRRREEEEEEEEEEEEEEEEEEEEEEEEE"
           )
         }
-        typeCheck(body, scope.getChildOrThis(statement))
+        typeCheck(filename, body, scope.getChildOrThis(statement))
       case a @ _ =>
         println(a.toString ++ " hasn't been handled yet")
         throw new Exception("AAAAAA")

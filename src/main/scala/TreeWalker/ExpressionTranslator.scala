@@ -362,14 +362,15 @@ object ExpressionTranslator {
 
 object EXPTranslatorMain{
   def main(args: Array[String]): Unit = {
-    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/ExpressionParserTest.txt"))
+    val filename = "src/main/ExpressionParserTest.txt"
+    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename)
     val symbolTable = new SymbolTable
 
     symbolTable.globalScope.addSymbol(
-      Token(TokenType.Identifier, "a", 0), Utility.Word(), Symbol.Variable()
+      Token(TokenType.Identifier, "a", 0), Utility.Word(), Symbol.Variable(), filename
     )
     symbolTable.globalScope.addSymbol(
-      Token(TokenType.Identifier, "b", 0), Utility.Word(), Symbol.Variable()
+      Token(TokenType.Identifier, "b", 0), Utility.Word(), Symbol.Variable(), filename
     )
 
     while(tokenBuffer.peekType != TokenType.EndOfFile){

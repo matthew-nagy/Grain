@@ -44,15 +44,26 @@ class TranslatorScope(private val innerScope: Scope) {
       case _: FunctionScope => currentOffset + pushesToTheStack
       case s: Scope => getParent.getOffsetToReturnAddress(currentOffset + s.size + pushesToTheStack)
 
-  //TODO in future count stack size and maybe just ADC the stack pointer if too large
   def extendStack(): List[IR.Instruction] = {
     val stackExtentions = innerScope.size / 2
-    (for i <- Range(0, stackExtentions)yield IR.PushDummyValue(XReg())).toList
+    if(stackExtentions < 3) {
+      (for i <- Range(0, stackExtentions) yield IR.PushDummyValue(XReg())).toList
+    }
+    else{
+      IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() ::
+        IR.AddCarry(Immediate(innerScope.size)) :: IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
+    }
   }
 
   def reduceStack(): List[IR.Instruction] = {
     val stackExtentions = innerScope.size / 2
-    (for i <- Range(0, stackExtentions) yield IR.PopDummyValue(XReg())).toList
+    if (stackExtentions < 3) {
+      (for i <- Range(0, stackExtentions) yield IR.PopDummyValue(XReg())).toList
+    }
+    else {
+      IR.TransferToAccumulator(StackPointerReg()) :: IR.SetCarry() ::
+        IR.SubtractCarry(Immediate(innerScope.size)) :: IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
+    }
   }
 
   private def getParent: TranslatorScope =

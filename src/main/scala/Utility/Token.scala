@@ -13,8 +13,8 @@ enum TokenType:
   //Built-in Types
        Ptr, BitdepthLiteral, RamGateLiteral,
   //Keywords
-       Abs, Assembly, Break, Case, Decrement, Do, Else, False, From, Func, For, If,
-       Include, Increment, Load, Match, Null, Referencing, Return, Tile, True,
+       Abs, As, Assembly, Break, Case, Class, Do, Else, False, From, Func, For, If,
+       Include, Load, Match, Null, Referencing, Return, Tile, True,
        Then, While,
 
 
@@ -70,10 +70,11 @@ object Token{
 
   val keywordMap: Map[String, TokenType] = Map(
     "abs" -> Abs,
+    "as" -> As,
     "asm" -> Assembly,
     "break" -> Break,
     "case" -> Case,
-    "decr" -> Decrement,
+    "class" -> Class,
     "do" -> Do,
     "else" -> Else,
     "false" -> False,
@@ -82,7 +83,6 @@ object Token{
     "for" -> For,
     "if" -> If,
     "include" -> Include,
-    "incr" -> Increment,
     "load" -> Load,
     "match" -> Match,
     "null" -> Null,

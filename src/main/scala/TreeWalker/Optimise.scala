@@ -21,6 +21,8 @@ object Optimise {
   //    Saves the 4 cycles of the dummy push by pushing A with the return value
   //  Finds pushing the first stack value as a single argument to a 1 arg function
   //    If you have already loaded/ stored the first stack value, you know that its already in the right place
+  //  Finds pushing A, loading A, then pulling to X/Y
+  //    You can just transfer to X/Y and not touch the stack. Saves 5 cycles.
   @tailrec
   def stackUsage(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
     val next: Result = instructions match
@@ -41,6 +43,8 @@ object Optimise {
         IR.PopDummyValue(_)  :: remaining if reg1 == reg2 =>
 
         Result(IR.Store(StackRelative(2), reg1) :: IR.JumpLongSaveReturn(func) :: Nil, remaining)
+      case IR.PushRegister(AReg()) :: IR.Load(imOrAdd, AReg()) :: IR.PopRegister(targetReg) :: remaining if targetReg != AReg() =>
+        Result(IR.TransferAccumulatorTo(targetReg) :: IR.Load(imOrAdd, AReg()) :: Nil, remaining)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
     Optimise.stackUsage(next.remaining, alreadyOptimised ::: next.optimisedFragment)
@@ -89,8 +93,28 @@ object Optimise {
               case YReg() => IR.TransferYTo(reg2)
             ) :: Optimise.registerUsage(remaining)
         }
+      case IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) ::
+            IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: remaining =>
+        IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0xFF00)) :: Optimise.registerUsage(remaining)
+      case IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) ::
+            IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) ::remaining =>
+        IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0x00FF)) :: Optimise.registerUsage(remaining)
       case _ =>
         instructions.head :: Optimise.registerUsage(instructions.tail)
+  }
+
+  //  Finds places where you either add 1 or are adding to 1
+  //    Replaces by incrementing the accumulator. Saves at minimum 2 cycles
+  @tailrec
+  def hardwareQuirks(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] ={
+    val next: Result = instructions match
+      case Nil => return alreadyOptimised
+      case IR.Load(Immediate(1), AReg()) :: IR.ClearCarry() :: IR.AddCarry(something) :: remaining =>
+        Result(IR.Load(something, AReg()) :: IR.IncrementReg(AReg()) :: Nil, remaining)
+      case IR.ClearCarry() :: IR.AddCarry(Immediate(1)) :: remaining =>
+        Result(IR.IncrementReg(AReg()) :: Nil, remaining)
+      case _ => Result(instructions.head :: Nil, instructions.tail)
+    Optimise.hardwareQuirks(next.remaining, alreadyOptimised ::: next.optimisedFragment)
   }
 
   def apply(instructions: List[IR.Instruction]): List[IR.Instruction] = {
@@ -104,6 +128,14 @@ object Optimise {
     if (GlobalData.optimisationFlags.optimiseDirectAddresses) {
       result = Optimise.directAddresses(result)
     }
-    result
+    if(GlobalData.optimisationFlags.optimiseHardwareQuirks){
+      result = Optimise.hardwareQuirks(result)
+    }
+    if(result.length == instructions.length){
+      result
+    }
+    else{
+      apply(result)
+    }
   }
 }

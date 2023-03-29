@@ -53,7 +53,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
   }
   def addGlobal(form: Symbol.GlobalVariable, symbolSize: Int): Unit = throw new Exception("Can't add global to non global scope")
 
-  def addSymbol(name: Token, symbol: Symbol): Unit =
+  def addSymbol(name: Token, symbol: Symbol, filename: String): Unit =
     symbolMap.contains(name.lexeme) match
       case false =>
         symbol.form match {
@@ -62,11 +62,11 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
           case _ =>
         }
         symbolMap.addOne(name.lexeme, symbol)
-      case true => throw Errors.SymbolRedefinition(symbolMap(name.lexeme).token, name)
+      case true => throw Errors.SymbolRedefinition(filename, symbolMap(name.lexeme).token, name)
 
-  def addSymbol(name: Token, varType: Utility.Type, form: SymbolForm): Symbol = {
+  def addSymbol(name: Token, varType: Utility.Type, form: SymbolForm, filename: String): Symbol = {
     val symbol = Symbol.make(name, varType, form)
-    addSymbol(name, symbol)
+    addSymbol(name, symbol, filename)
     symbol
   }
   def apply(index: String):Symbol =
@@ -152,10 +152,17 @@ class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable){
   private var globalHeapPtr: Int = 100
   private var currentDataBank: Int = 0
   private var currentBankSize: Int = 0
+
+  private var parsedFileSet: Set[String] = Set.empty[String]
+
   def newFunctionChild(): FunctionScope = FunctionScope(Some(this), symbolTable)
+
+  private def stripFilename(filename: String): String = filename.split('/').last.split('\\').last
+  def hasFileBeenParsed(filename: String): Boolean = parsedFileSet.contains(stripFilename(filename))
+  def addParsedFile(filename: String): Unit = parsedFileSet = parsedFileSet.addOne(stripFilename(filename))
   
 
-  def addData(name: Token, varType: Utility.Type, form: Symbol.Data): Symbol = {
+  def addData(name: Token, varType: Utility.Type, form: Symbol.Data, filename: String): Symbol = {
     val symbol = Symbol.make(name, varType, form)
 
     if(currentBankSize + form.dataSize >= GlobalData.snesData.bankSize){
@@ -166,7 +173,7 @@ class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable){
     form.dataBank = currentDataBank
     currentBankSize += form.dataSize
 
-    addSymbol(name, symbol)
+    addSymbol(name, symbol, filename)
 
     symbol
   }

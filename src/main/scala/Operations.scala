@@ -5,7 +5,7 @@ package Operation:
   import Grain.Operation.Binary.{GreaterEqual, LessEqual}
 
   enum Unary:
-    case Minus, BooleanNegation, BitwiseNot
+    case Minus, BooleanNegation, BitwiseNot, Abs
 
 
 

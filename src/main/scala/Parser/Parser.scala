@@ -9,8 +9,10 @@ import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 
 
-class TokenBuffer(private val tokens: List[Token]){
+class TokenBuffer(private val tokens: List[Token], filename: String){
   private var index = 0
+
+  def getFilename: String = filename
 
   def peek: Token = tokens(index)
 
@@ -49,7 +51,7 @@ class TokenBuffer(private val tokens: List[Token]){
       next
     }
     else {
-      throw Errors.expectedTokenError(peek, requestedType)
+      throw Errors.expectedTokenError(filename, peek, requestedType)
     }
   }
 
@@ -95,7 +97,7 @@ def parseType(symbolTable: SymbolTable, tokenBuffer: TokenBuffer): Type = {
   val startToken = tokenBuffer.advance()
   val startType = if(symbolTable.types.contains(startToken.lexeme)) symbolTable.types(startToken.lexeme)
                   else if(startToken.tokenType == TokenType.LeftParen) parseFunctionPtr(symbolTable, tokenBuffer)
-                  else throw Errors.expectedType(startToken)
+                  else throw Errors.expectedType(tokenBuffer.getFilename, startToken)
   parseTypeAddition(startType, tokenBuffer)
 }
 
@@ -121,23 +123,24 @@ object TopLevelParser{
       val ps = parseTopLevel(scope, tokenBuffer)
       ps match
         case ps: SyntaxError => errors.append(ps)
-        case ps: Stmt.TopLevel => statements.append(ps)
+        case ps: List[Stmt.TopLevel] => statements.appendAll(ps)
     }
 
     Result(statements.toList.filter(!_.isInstanceOf[Stmt.EmptyStatement]), errors.toList)
   }
 
-  def parseTopLevel(scope: GlobalScope, tokenBuffer: TokenBuffer): Stmt.TopLevel | Utility.SyntaxError = {
+  def parseTopLevel(scope: GlobalScope, tokenBuffer: TokenBuffer): List[Stmt.TopLevel] | Utility.SyntaxError = {
     returnTypeOrError{
-      val top = tokenBuffer.peekType match
-        case TokenType.Func => parseFunction(scope, tokenBuffer)
-        case TokenType.Load => parseLoad(scope, tokenBuffer)
+      val top: List[Stmt.TopLevel] | Utility.SyntaxError = tokenBuffer.peekType match
+        case TokenType.Func => parseFunction(scope, tokenBuffer) :: Nil
+        case TokenType.Load => parseLoad(scope, tokenBuffer) :: Nil
+        case TokenType.Include => parseInclude(scope, tokenBuffer)
         case _ =>
           if tokenBuffer.lookAhead(1).tokenType == TokenType.Colon then
-            StatementParser.parseVariableDecl(scope, tokenBuffer, true)
+            StatementParser.parseVariableDecl(scope, tokenBuffer, true) :: Nil
           else {
             println("Not allowed " ++ tokenBuffer.advance().toString ++ " at top level")
-            Stmt.EmptyStatement()
+            Stmt.EmptyStatement() :: Nil
           }
       top
     }
@@ -154,9 +157,9 @@ object TopLevelParser{
       val typeToken = tokenBuffer.peek
       val argType = parseType(scope.symbolTable, tokenBuffer)
       if(argType.isInstanceOf[Utility.Array]){
-        throw Errors.CannotHaveArrayArgument(typeToken)
+        throw Errors.CannotHaveArrayArgument(tokenBuffer.getFilename, typeToken)
       }
-      arguments.append(scope.addSymbol(argName, argType, Symbol.Argument()))
+      arguments.append(scope.addSymbol(argName, argType, Symbol.Argument(), tokenBuffer.getFilename))
     }
     tokenBuffer.matchType(TokenType.RightParen)
     arguments.toList
@@ -179,7 +182,8 @@ object TopLevelParser{
     val funcSymbol = scope.addSymbol(
       funcName,
       Utility.FunctionPtr(arguments.map(_.dataType), returnType),
-      Symbol.FunctionDefinition(tokenBuffer.peekType == TokenType.Assembly))
+      Symbol.FunctionDefinition(tokenBuffer.peekType == TokenType.Assembly),
+      tokenBuffer.getFilename)
 
     tokenBuffer.peekType match
       case TokenType.Assembly =>
@@ -217,16 +221,29 @@ object TopLevelParser{
 
     val loadedImage = ImageLoader(mainFilename.lexeme)
 
-    scope.addSymbol(spriteToken, Utility.SpriteSheet(loadedImage.bpp), Symbol.Data(loadedImage.dataStrings, loadedImage.dataSize))
-    scope.addSymbol(paletteToken, Utility.Palette(), Symbol.Data(loadedImage.paletteStrings, loadedImage.palleteSize))
+    scope.addSymbol(spriteToken, Utility.SpriteSheet(loadedImage.bpp), Symbol.Data(loadedImage.dataStrings, loadedImage.dataSize), tokenBuffer.getFilename)
+    scope.addSymbol(paletteToken, Utility.Palette(), Symbol.Data(loadedImage.paletteStrings, loadedImage.palleteSize), tokenBuffer.getFilename)
 
     Stmt.Load(spriteToken, paletteToken, mainFilename, references)
+  }
+
+  def parseInclude(scope: GlobalScope, tokenBuffer: TokenBuffer): List[Stmt.TopLevel] = {
+
+    tokenBuffer.matchType(TokenType.Include)
+    val newFilenameToken = tokenBuffer.matchType(TokenType.StringLiteral)
+
+    val newTokenBuffer = TokenBuffer(Scanner.scanText(newFilenameToken.lexeme), newFilenameToken.lexeme)
+    val result = apply(scope, newTokenBuffer)
+    if(result.errors.nonEmpty){
+      throw Errors.VariousErrors(newFilenameToken.lexeme, result.errors)
+    }
+    result.statements
   }
 }
 
 object ParseMain{
   def main(args: Array[String]): Unit = {
-    val tokenBuffer = TokenBuffer(Scanner.scanText("parserTest.txt"))
+    val tokenBuffer = TokenBuffer(Scanner.scanText("parserTest.txt"), "parserText.txt")
     val symbolTable = new SymbolTable
 
     val result = TopLevelParser(symbolTable.globalScope, tokenBuffer)

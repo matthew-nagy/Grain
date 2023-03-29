@@ -6,6 +6,7 @@ import scala.collection.Set
 type Bitdepth = 2 | 4 | 8
 val bitdepthLiteralStrings: Set[String] = Set("2bpp", "4bpp", "8bpp")
 
+
 sealed trait Type
 sealed trait PtrType extends Type
 sealed trait SpecialType extends Type
@@ -36,7 +37,7 @@ object Struct{
     for symbol <- symbols yield makeEntryFromSymbol(symbol)
   }
 }
-case class Struct(entries: List[Struct.Entry]) extends Type{
+case class Struct(entries: List[Struct.Entry], definedFunctions: List[Symbol]) extends Type{
   private var cachedSize: Option[Int] = None
   def size = cachedSize match
     case None =>
@@ -59,7 +60,7 @@ def getTypeSize(dataType: Type):Int = {
     case Array(of, length) =>
       getTypeSize(of) * length
     case FunctionPtr(_, _) => 2
-    case s @ Struct(_) => s.size
+    case s @ Struct(_, _) => s.size
 }
 
 def stripPtrType(t: Type):Type = {

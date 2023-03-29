@@ -65,7 +65,7 @@ object ExpressionParser {
         case Expr.Indirection(inner) => Expr.SetIndex(GetIndex(inner, Expr.NumericalLiteral(0)), right)//This is horrible. I love it
         case _ =>
           println(expression)
-          throw Errors.invalidLValue(token)
+          throw Errors.invalidLValue(tokenBuffer.getFilename, token)
     }
 
     expr
@@ -158,7 +158,7 @@ object ExpressionParser {
         case TokenType.Bang => Some(Operation.Unary.BooleanNegation)
         case TokenType.Minus => Some(Operation.Unary.Minus)
         case TokenType.Asperand => None
-        case _ => throw Errors.expectedUnary(token)
+        case _ => throw Errors.expectedUnary(tokenBuffer.getFilename, token)
       }
       val right = parseUnary(scope, tokenBuffer)
 
@@ -192,7 +192,7 @@ object ExpressionParser {
 
     while(tokenBuffer.peek.tokenType match{
       case TokenType.LeftParen =>
-        if !expType.isInstanceOf[Utility.FunctionPtr] then throw Errors.CannotCallType(tokenBuffer.peek.lineNumber, expType)
+        if !expType.isInstanceOf[Utility.FunctionPtr] then throw Errors.CannotCallType(tokenBuffer.getFilename, tokenBuffer.peek.lineNumber, expType)
         tokenBuffer.advance()
         expr = finishCall(expr, scope, tokenBuffer)
         true
@@ -265,11 +265,11 @@ object ExpressionParser {
             grouping
       case TokenType.Identifier =>
         if(!scope.contains(token.lexeme)){
-          throw Errors.SymbolNotFound(token)
+          throw Errors.SymbolNotFound(tokenBuffer.getFilename, token)
         }
         Expr.Variable(token)
       case _ =>
-        throw Errors.ExpectedExpression(token)
+        throw Errors.ExpectedExpression(tokenBuffer.getFilename, token)
   }
 
 
@@ -279,28 +279,28 @@ object ExpressionParser {
       case Operation.Unary.BooleanNegation => value == Utility.BooleanType()
       case Operation.Unary.BitwiseNot => value == Utility.BooleanType() || value == Utility.Word()
       case null => throw Exception("Invalid case")
-  def typeCheck(expr: Expr.Expr, scope: Scope): Unit = {
+  def typeCheck(filename: String, expr: Expr.Expr, scope: Scope): Unit = {
     import Expr.*
 
     expr match
       case Assign(varToken, arg) =>
-        typeCheck(arg, scope)
+        typeCheck(filename, arg, scope)
         if(!Utility.typeEquivilent(scope(varToken.lexeme).dataType, scope.getTypeOf(arg))){
-          throw Errors.badlyTyped(
+          throw Errors.badlyTyped(filename,
             varToken.lexeme ++ " has type " ++ scope(varToken.lexeme).dataType.toString ++ ", rValue has type " ++ scope.getTypeOf(arg).toString
           )
         }
       case BooleanLiteral(_) =>
       case UnaryOp(op, arg) =>
-        typeCheck(arg, scope)
+        typeCheck(filename, arg, scope)
         typeCheckUnary(op, scope.getTypeOf(arg))
       case BinaryOp(op, left, right) =>
-        typeCheck(left, scope)
-        typeCheck(right, scope)
+        typeCheck(filename, left, scope)
+        typeCheck(filename, right, scope)
         op match
           case _ if Operation.Groups.LogicalTokens.contains(op) || Operation.Groups.RelationalTokens.contains(op) =>
             if(!Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))){
-              throw Errors.badlyTyped(
+              throw Errors.badlyTyped(filename,
                 "LValue " ++ left.toString ++ " with type " ++ scope.getTypeOf(left).toString ++
                   "cannot use " ++ op.toString ++ " with RValue of type " ++ scope.getTypeOf(right).toString ++ " (" ++ right.toString ++ ")"
               )
@@ -308,11 +308,13 @@ object ExpressionParser {
           case _ if Operation.Groups.ArithmeticTokens.contains(op) =>
             if(!Utility.typeEquivilent(scope.getTypeOf(left), Utility.Word())){
               throw Errors.badlyTyped(
+                filename,
                 op.toString ++ " requires arguments of type word. Left argument (" ++ left.toString ++ ") has type " ++ scope.getTypeOf(left).toString
               )
             }
             if(!Utility.typeEquivilent(scope.getTypeOf(right), Utility.Word())){
               throw Errors.badlyTyped(
+                filename,
                 op.toString ++ " requires arguments of type word. Right argument (" ++ right.toString ++ ") has type " ++ scope.getTypeOf(right).toString
               )
             }
@@ -321,9 +323,10 @@ object ExpressionParser {
       case NumericalLiteral(_) =>
       case StringLiteral(_) =>
       case Indirection(expr) =>
-        typeCheck(expr, scope)
+        typeCheck(filename, expr, scope)
         if(!scope.getTypeOf(expr).isInstanceOf[Utility.Ptr]){
           Errors.badlyTyped(
+            filename,
             "Cannot use indirection on non pointer type. " ++ expr.toString ++ " is of type " ++ scope.getTypeOf(expr).toString
           )
         }
@@ -336,13 +339,14 @@ object ExpressionParser {
               (expectedT, givenT) => {
                 if (!Utility.typeEquivilent(expectedT, givenT)) {
                   throw Errors.badlyTyped(
+                    filename,
                     "Expected type " ++ expectedT.toString ++ " but got type " ++ givenT.toString ++ ". (" ++ expr.toString ++ ")"
                   )
                 }
                 true
               }
             ) && arguments.forall(arg => {
-              typeCheck(arg, scope)
+              typeCheck(filename, arg, scope)
               true
             })
           case _ =>
@@ -350,47 +354,50 @@ object ExpressionParser {
         val leftType = scope.getTypeOf(left)
         leftType match {
           case leftType: Struct =>
-            typeCheck(left, scope)
+            typeCheck(filename, left, scope)
             if(!leftType.entries.contains(name.lexeme)){
-              throw Errors.structDoesntHaveElement(name.lexeme, leftType.toString)
+              throw Errors.structDoesntHaveElement(filename, name.lexeme, leftType.toString)
             }
           case _ =>
         }
       case GetAddress(of) =>
         //Only some types can have their address got
-        typeCheck(of, scope)
+        typeCheck(filename, of, scope)
         if(!(of.isInstanceOf[Variable] || of.isInstanceOf[Get] || of.isInstanceOf[GetIndex])){
           throw Errors.badlyTyped(
+            filename,
             of.toString ++ " is not an addressable value"
           )
         }
       case GetIndex(of, by) =>
         val ofType = scope.getTypeOf(of)
-        typeCheck(of, scope)
-        typeCheck(by, scope)
+        typeCheck(filename, of, scope)
+        typeCheck(filename, by, scope)
         if(!Utility.typeEquivilent(scope.getTypeOf(by), Utility.Word())){
-          throw Errors.badlyTyped(by.toString ++ " has type " ++ scope.getTypeOf(by).toString ++ ", expected word")
+          throw Errors.badlyTyped(filename, by.toString ++ " has type " ++ scope.getTypeOf(by).toString ++ ", expected word")
         }
         if(!ofType.isInstanceOf[Utility.PtrType]){
-          throw Errors.cannotIndexNonPoinerElements(of.toString, ofType)
+          throw Errors.cannotIndexNonPoinerElements(filename, of.toString, ofType)
         }
       case Set(left, right) =>
-        typeCheck(left, scope)
-        typeCheck(right, scope)
+        typeCheck(filename, left, scope)
+        typeCheck(filename, right, scope)
         if(!Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))){
           throw Errors.badlyTyped(
+            filename,
             left.toString ++ " has type " ++ scope.getTypeOf(left).toString ++ ", rValue has type " ++ scope.getTypeOf(right).toString
           )
         }
       case SetIndex(left, right) =>
-        typeCheck(left, scope)
-        typeCheck(right, scope)
+        typeCheck(filename, left, scope)
+        typeCheck(filename, right, scope)
         if (!Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))) {
           throw Errors.badlyTyped(
+            filename,
             left.toString ++ " has type " ++ scope.getTypeOf(left).toString ++ ", rValue has type " ++ scope.getTypeOf(right).toString
           )
         }
-      case Grouping(internalExpr) => typeCheck(internalExpr, scope)
+      case Grouping(internalExpr) => typeCheck(filename, internalExpr, scope)
       case null => throw new Exception("What?")
   }
 }
