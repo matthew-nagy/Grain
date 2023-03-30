@@ -1,17 +1,21 @@
 
 class SomeClass{
     value: word
+    somethingElse: bool
 
-    func doAThing(a: word, b: bool):word{
-        if b then a + @this.value
-        else a
+    func doAThing(a: word, b: word):word{
+        if @this.somethingElse then a + @this.value
+        else b
     }
 }
 
-func main(){
+instance:SomeClass
 
+func main(){
+    instance.value = 9
+    instance.somethingElse = true
 }
 
 func VBlank(){
-
+    instance.doAThing(20, 37)
 }

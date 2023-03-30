@@ -17,7 +17,7 @@ object GlobalData {
     val staticOptimiseTree = false
     val stackPressureOptimisations = false
     val optimiseStackUsage = false
-    val optimiseRegisterUsage = false
+    val optimiseRegisterUsage = true
     val optimiseDirectAddresses = false
     val optimiseHardwareQuirks = false
   }

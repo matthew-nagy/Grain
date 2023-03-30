@@ -2,6 +2,7 @@ package Parser
 
 import Grain.*
 import Grain.Expr.*
+import Utility.TokenType.Asperand
 import Utility.{Errors, Struct, SyntaxError, TokenType}
 
 object ExpressionParser {
@@ -151,20 +152,16 @@ object ExpressionParser {
     expr
   }
   private def parseUnary(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
-    if((TokenType.Tilde :: TokenType.Bang :: TokenType.Asperand :: TokenType.Minus :: Nil).contains(tokenBuffer.peekType)){
+    if((TokenType.Tilde :: TokenType.Bang :: TokenType.Minus :: Nil).contains(tokenBuffer.peekType)){
       val token = tokenBuffer.advance()
-      val op: Option[Operation.Unary]  = token.tokenType match {
-        case TokenType.Tilde => Some(Operation.Unary.BitwiseNot)
-        case TokenType.Bang => Some(Operation.Unary.BooleanNegation)
-        case TokenType.Minus => Some(Operation.Unary.Minus)
-        case TokenType.Asperand => None
+      val op = token.tokenType match {
+        case TokenType.Tilde => Operation.Unary.BitwiseNot
+        case TokenType.Bang => Operation.Unary.BooleanNegation
+        case TokenType.Minus => Operation.Unary.Minus
         case _ => throw Errors.expectedUnary(tokenBuffer.getFilename, token)
       }
       val right = parseUnary(scope, tokenBuffer)
-
-      return op match
-        case Some(operation) => Expr.UnaryOp(operation, right)
-        case None => Expr.Indirection(right)
+      Expr.UnaryOp(op, right)
     }
     parseCall(scope, tokenBuffer)
   }
@@ -265,6 +262,8 @@ object ExpressionParser {
           throw Errors.SymbolNotFound(tokenBuffer.getFilename, token)
         }
         Expr.Variable(token)
+      case TokenType.Asperand =>
+        Expr.Indirection(parsePrimary(scope, tokenBuffer))
       case _ =>
         throw Errors.ExpectedExpression(tokenBuffer.getFilename, token)
   }

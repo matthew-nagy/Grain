@@ -70,6 +70,10 @@ case class Struct(name: String, entries: ListBuffer[Struct.Entry], definedFuncti
       result
     case Some(value) => value
 
+  def getOffsetOf(entryName: String): Int =
+    entries.find(_.symbol.token.lexeme == entryName) match
+      case Some(entry) => entry.offset
+      case _ => throw Exception(entryName ++ " not found in class " ++ name)
   def typeof(name: String): Type = entries.filter(_.symbol.token.lexeme == name).head.symbol.dataType
   
   def contains(name: String): Boolean = entries.exists(_.symbol.token.lexeme == name)

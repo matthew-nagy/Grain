@@ -78,6 +78,8 @@ object Optimise {
   //    Saves the load cycles
   //  Finds places where you store then load the same thing to different places
   //    In general a transfer would be faster, they are always 2 cycles, stack relative loading may be 4 or more
+  //  Finds pointer indexing with x when it could be an indirection
+  //    Saves a transfer and indexed load, if you can index it
   def registerUsage(instructions: List[IR.Instruction]): List[IR.Instruction] = {
     instructions match
       case Nil => Nil
@@ -99,6 +101,21 @@ object Optimise {
       case IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) ::
             IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) ::remaining =>
         IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0x00FF)) :: Optimise.registerUsage(remaining)
+      case IR.Load(address, AReg()) :: transfer :: IR.Load(DirectIndexed(0, XReg()), AReg()) :: remaining=>
+        val validTransfer = transfer match
+          case IR.TransferToX(AReg()) => true
+          case IR.TransferAccumulatorTo(XReg()) => true
+          case _ => false
+        if(validTransfer){
+          address match
+            case Direct(directAddress) => IR.Load(DirectIndirect(directAddress), AReg()) :: Optimise.registerUsage(remaining)
+            case StackRelative(stackAddress) => IR.Load(Immediate(0), YReg()) :: IR.Load(StackRelativeIndirectIndexed(stackAddress,YReg()), AReg()) :: Optimise.registerUsage(remaining)
+            case DirectIndexed(directAddress, indexReg) => IR.Load(DirectIndexedIndirect(directAddress, indexReg), AReg()) :: Optimise.registerUsage(remaining)
+            case _ => instructions.head :: Optimise.registerUsage(instructions.tail)
+        }
+        else{
+          instructions.head :: Optimise.registerUsage(instructions.tail)
+        }
       case _ =>
         instructions.head :: Optimise.registerUsage(instructions.tail)
   }

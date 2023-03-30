@@ -158,6 +158,29 @@ object Indexing{
   }
 }
 
+object Getting{
+
+  private def offsetAddress(address: Address, offset: Int): Address = Direct(0)
+  def getByIndirection(scope:TranslatorScope, ptrCode: Expr.Expr, name: Token): List[IR.Instruction] =
+    scope.inner.getTypeOf(ptrCode) match
+      case Utility.Ptr(structType) if structType.isInstanceOf[Utility.Struct] =>
+        val offset = structType.asInstanceOf[Utility.Struct].getOffsetOf(name.lexeme)
+        ptrCode match
+          //TODO could add a case for global arrays or something
+          case Variable(varToken) =>
+            val varAddress = scope.getAddress(varToken.lexeme)
+              IR.Load(varAddress, AReg()) :: IR.TransferToX(AReg()) :: IR.Load(DirectIndexed(offset, XReg()), AReg()) :: Nil
+          case _ =>
+            Indexing.getAddressInto(ptrCode, AReg(), scope).toList ::: (
+              IR.TransferToX(AReg()) :: IR.Load(DirectIndexed(offset, XReg()), AReg()) :: Nil
+            )
+      case t@_ => throw new Exception("Should have caught this in the type checker, cannot index non struct type")
+  def getByVariable(scope:TranslatorScope, left: Expr.Variable, name: Token): List[IR.Instruction] = {
+    println("Where is the funny")
+    Nil
+  }
+}
+
 object ExpressionTranslator {
   case class StackLocation(address: Address, toGetThere: IRBuffer)
   case class AccumulatorLocation(toGetThere: IRBuffer)
@@ -307,6 +330,13 @@ object ExpressionTranslator {
       case GetIndex(of, by) =>
         AccumulatorLocation(IRBuffer().append(Indexing.getIndexValue(of, by, scope)))
       case Grouping(internalExpr) => getFromAccumulator(internalExpr, scope)
+      case Get(left, name) =>
+        AccumulatorLocation(IRBuffer().append(
+          left match
+            case Indirection(indirectionExpr) => Getting.getByIndirection(scope, indirectionExpr, name)
+            case v@Variable(_) => Getting.getByVariable(scope, v, name)
+            case _ => throw new Exception("Can't do " ++ expr.toString ++ " to structs")
+        ))
       case _ =>
         throw new Exception("Cannot translate expression -> " ++ expr.toString)
     result match
