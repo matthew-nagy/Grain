@@ -135,6 +135,7 @@ object TopLevelParser{
         case TokenType.Func => parseFunction(scope, tokenBuffer) :: Nil
         case TokenType.Load => parseLoad(scope, tokenBuffer) :: Nil
         case TokenType.Include => parseInclude(scope, tokenBuffer)
+        case TokenType.Class => parseClass(scope, tokenBuffer)
         case _ =>
           if tokenBuffer.lookAhead(1).tokenType == TokenType.Colon then
             StatementParser.parseVariableDecl(scope, tokenBuffer, true) :: Nil
@@ -164,13 +165,18 @@ object TopLevelParser{
     tokenBuffer.matchType(TokenType.RightParen)
     arguments.toList
   }
-  private def parseFunction(scope: GlobalScope, tokenBuffer: TokenBuffer): Stmt.TopLevel = {
+
+  private def parseFunctionOrEmpty(scope: GlobalScope, functionScope: FunctionScope, tokenBuffer: TokenBuffer,
+                                   argumentParser: (FunctionScope, TokenBuffer)=> List[Symbol] = parseFunctionArguments,
+                                   sendName: Token=>Unit = (s)=>{}): Stmt.TopLevel = {
     tokenBuffer.matchType(TokenType.Func)
-    val functionScope = scope.newFunctionChild()
 
     val funcName = tokenBuffer.matchType(TokenType.Identifier)
+    sendName(funcName)
 
-    val arguments = parseFunctionArguments(functionScope, tokenBuffer)
+    val arguments = argumentParser(functionScope, tokenBuffer)
+    println("In " ++ funcName.lexeme ++ " with args " ++ arguments.toString)
+    println("The scope is " ++ functionScope.toString)
     val returnType = tokenBuffer.peekType match
       case TokenType.Colon =>
         tokenBuffer.advance()
@@ -188,13 +194,19 @@ object TopLevelParser{
     tokenBuffer.peekType match
       case TokenType.Assembly =>
         val funcStmt = Stmt.FunctionDecl(funcSymbol, arguments, StatementParser.parseAssembly(functionScope, tokenBuffer))
-        scope.linkStatementWithScope(funcStmt, functionScope)
         funcStmt
       case TokenType.LeftBrace =>
         val funcStmt = Stmt.FunctionDecl(funcSymbol, arguments, StatementParser.parseBlock(functionScope, tokenBuffer))
-        scope.linkStatementWithScope(funcStmt, functionScope)
         funcStmt
       case _ => Stmt.EmptyStatement()
+  }
+  private def parseFunction(scope: GlobalScope, tokenBuffer: TokenBuffer): Stmt.TopLevel = {
+    val functionScope = scope.newFunctionChild()
+    parseFunctionOrEmpty(scope, functionScope, tokenBuffer) match
+      case funcStmt: Stmt.FunctionDecl =>
+        scope.linkStatementWithScope(funcStmt, functionScope)
+        funcStmt
+      case _@x => x
   }
 
   private def parseReferencing(tokenBuffer: TokenBuffer): List[Stmt.PaletteReference] = {
@@ -238,6 +250,54 @@ object TopLevelParser{
       throw Errors.VariousErrors(newFilenameToken.lexeme, result.errors)
     }
     result.statements
+  }
+
+  private def translateFunctionDeclToMember(oldDecl: Stmt.FunctionDecl, className: Token): Stmt.FunctionDecl = {
+    val newSymbol = Symbol.make(
+      Token(
+        oldDecl.funcSymbol.token.tokenType,
+        className.lexeme ++ "." ++ oldDecl.funcSymbol.token.lexeme,
+        oldDecl.funcSymbol.token.lineNumber
+      ), oldDecl.funcSymbol.dataType, oldDecl.funcSymbol.form)
+    Stmt.FunctionDecl(newSymbol, oldDecl.arguments, oldDecl.body)
+  }
+  def parseClass(scope: GlobalScope, tokenBuffer: TokenBuffer): List[Stmt.TopLevel] = {
+    tokenBuffer.matchType(TokenType.Class)
+    val className = tokenBuffer.matchType(TokenType.Identifier)
+    val typeSignature = Utility.Struct(className.lexeme, Utility.Struct.generateEntries(Nil), ListBuffer.empty[Symbol])
+    scope.symbolTable.types.addOne(className.lexeme, typeSignature)
+    tokenBuffer.matchType(TokenType.LeftBrace)
+
+    def classArgParser(functionScope: FunctionScope, tokenBuffer: TokenBuffer): List[Symbol] = {
+      val regularArguments = parseFunctionArguments(functionScope, tokenBuffer)
+      val thisSymbol = Symbol("this", Token(TokenType.Identifier, "this", className.lineNumber), Utility.Ptr(typeSignature), className.lineNumber, Symbol.Argument())
+      functionScope.addSymbol(thisSymbol.token, thisSymbol, tokenBuffer.getFilename)
+      regularArguments ::: (thisSymbol :: Nil)
+    }
+
+    val parsedFunctions = ListBuffer.empty[Stmt.TopLevel]
+
+    while(tokenBuffer.peekType != TokenType.RightBrace){
+      if(tokenBuffer.peekType == TokenType.Func){
+        val functionScope = scope.newFunctionChild()
+        var funcName = Token(TokenType.ErrorToken, "", -1)
+        val newFunction = parseFunctionOrEmpty(scope, functionScope, tokenBuffer, classArgParser, funcName = _)
+        newFunction match
+          case func: Stmt.FunctionDecl =>
+            val memberDecl = translateFunctionDeclToMember(func, className)
+            scope.linkStatementWithScope(memberDecl, functionScope)
+            typeSignature.definedFunctions.addOne(func.funcSymbol)
+            parsedFunctions.addOne(memberDecl)
+          case _ => throw Errors.ClassFunctionsMustHaveDefinitions(tokenBuffer.getFilename, funcName, className.lexeme)
+      }
+      else{
+        val variableSymbol = StatementParser.parseVariableSymbol(scope, tokenBuffer, false)
+        typeSignature.entries.addAll(Utility.Struct.generateEntries(variableSymbol :: Nil))
+      }
+    }
+    tokenBuffer.matchType(TokenType.RightBrace)
+
+    parsedFunctions.toList
   }
 }
 

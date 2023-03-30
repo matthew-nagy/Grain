@@ -1,13 +1,17 @@
-gameWorld: word[1024]
 
-func setupGameWorld(){
-    skyCellIndex: word = 0
-    floorCellIndex: word = 5
-    i: word = 0
-    for ; i < 768; i = i + 1 do
-        gameWorld[i] = skyCellIndex
+class SomeClass{
+    value: word
 
-    for ; i < 1024; i = i + 1 do
-        gameWorld[i] = floorCellIndex
+    func doAThing(a: word, b: bool):word{
+        if b then a + @this.value
+        else a
+    }
 }
 
+func main(){
+
+}
+
+func VBlank(){
+
+}

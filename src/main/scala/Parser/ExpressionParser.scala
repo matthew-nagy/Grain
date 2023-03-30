@@ -259,10 +259,7 @@ object ExpressionParser {
         val nextExpression = parseExpression(scope, tokenBuffer)
         nextExpression match
           case nextExpression: SyntaxError => throw nextExpression
-          case nextExpression: Expr.Expr =>
-            val grouping = Expr.Grouping(nextExpression)
-            tokenBuffer.matchType(TokenType.RightParen)
-            grouping
+          case nextExpression: Expr.Expr => nextExpression
       case TokenType.Identifier =>
         if(!scope.contains(token.lexeme)){
           throw Errors.SymbolNotFound(tokenBuffer.getFilename, token)
@@ -355,7 +352,7 @@ object ExpressionParser {
         leftType match {
           case leftType: Struct =>
             typeCheck(filename, left, scope)
-            if(!leftType.entries.contains(name.lexeme)){
+            if(!leftType.entries.exists(_.symbol.name == name.lexeme)){
               throw Errors.structDoesntHaveElement(filename, name.lexeme, leftType.toString)
             }
           case _ =>

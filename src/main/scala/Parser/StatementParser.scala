@@ -120,12 +120,17 @@ object StatementParser {
     Stmt.Return(value)
   }
 
-  def parseVariableDecl(scope: Scope, tokenBuffer: TokenBuffer, atTopLevel: Boolean): Stmt.TopLevel = {
+  def parseVariableSymbol(scope: Scope, tokenBuffer: TokenBuffer, atTopLevel: Boolean): Symbol = {
     val varToken = tokenBuffer.matchType(TokenType.Identifier)
     tokenBuffer.matchType(TokenType.Colon)
     val varType = parseType(scope.symbolTable, tokenBuffer)
-    val symbolForm = if(atTopLevel) Symbol.GlobalVariable() else Symbol.Variable()
-    scope.addSymbol(varToken, varType, symbolForm, tokenBuffer.getFilename)
+    val symbolForm = if (atTopLevel) Symbol.GlobalVariable() else Symbol.Variable()
+    Symbol.make(varToken, varType, symbolForm)
+  }
+
+  def parseVariableDecl(scope: Scope, tokenBuffer: TokenBuffer, atTopLevel: Boolean): Stmt.TopLevel = {
+    val varSymbol = parseVariableSymbol(scope, tokenBuffer, atTopLevel)
+    scope.addSymbol(varSymbol.token, varSymbol, tokenBuffer.getFilename)
 
     if(tokenBuffer.peekType != TokenType.Equal){
       Stmt.EmptyStatement()
@@ -133,7 +138,7 @@ object StatementParser {
     else {
       tokenBuffer.advance()
       val init = ExpressionParser.parseOrThrow(scope, tokenBuffer)
-      Stmt.VariableDecl(Expr.Assign(varToken, init))
+      Stmt.VariableDecl(Expr.Assign(varSymbol.token, init))
     }
   }
 

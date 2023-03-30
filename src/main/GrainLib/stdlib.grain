@@ -1,4 +1,3 @@
-
 //Player is 1-4
 func getPlayerInput(playerNumber: word): word asm{
     "lda 4, s"
@@ -9,5 +8,11 @@ func getPlayerInput(playerNumber: word): word asm{
     "and #1"
     "bne func_getPlayerInput_waitForUserInput"
     "lda $4216, x"
+    "rtl"
+}
+
+func frame() asm{
+    "inc 6"
+    "wai"
     "rtl"
 }

@@ -13,6 +13,13 @@ object GrainTranslator {
   case class GlobalsCode(buffer: IRBuffer) extends Result
   case class DataCode(labelName: String, data: List[String], var dataBank: Int) extends Result
 
+  private val VBlankEndLabel = Label("VBlank_End")
+
+  //Load 6. The zero flag will be 1 if 0, checked by equal.
+  //If you get past there, reset the flag
+  private val VBlankReturnIfFrameIsUnfinished: List[Instruction] =
+    IR.Load(Direct(6), AReg()) :: IR.BranchIfEqual(VBlankEndLabel) :: IR.SetZero(Direct(6)):: Nil
+
   class IRAccumulator{
     private val globalVariableInitalisation = ListBuffer.empty[IRBuffer]
     private val functionCode = ListBuffer.empty[IRBuffer]
@@ -80,7 +87,7 @@ object GrainTranslator {
       case VariableDecl(assignment) =>
         GlobalsCode(ExpressionTranslator.getFromAccumulator(assignment, TranslatorScope(scope)).toGetThere) :: Nil
       case FunctionDecl(funcSymbol, _, body) =>
-        val defaultFuncLabel = "func_" ++ funcSymbol.name
+        val defaultFuncLabel = (if(funcSymbol.name.contains('.'))"method_" else "func_") ++ funcSymbol.name
 
         body match
           case asmBody: Stmt.Assembly =>
@@ -91,7 +98,7 @@ object GrainTranslator {
             val functionStart = funcSymbol.name match
               case "main" => IR.PutLabel(Label("main_function")) :: Nil
               case "VBlank" => IR.PutLabel(Label("VBlank")) :: IR.PushRegister(AReg()) :: IR.PushRegister(XReg()) :: IR.PushRegister(YReg()) ::
-                IR.PushProcessorStatus() :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil
+                IR.PushProcessorStatus() :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil ::: VBlankReturnIfFrameIsUnfinished
               case _ => IR.PutLabel(Label(defaultFuncLabel)) :: Nil
 
             val saveStack = IR.TransferToX(StackPointerReg()) :: IR.PushRegister(XReg()).addComment("Record stack frame") :: Nil
@@ -108,7 +115,7 @@ object GrainTranslator {
 
             val funcEnd = funcSymbol.name match
               case "main" => IR.StopClock().addComment("At the end of main") :: Nil
-              case "VBlank" => IR.PullProcessorStatus() :: IR.PopRegister(YReg()) :: IR.PopRegister(XReg()) :: IR.PopRegister(AReg()) :: IR.ReturnFromInterrupt() :: Nil
+              case "VBlank" => IR.PutLabel(VBlankEndLabel) :: IR.PullProcessorStatus() :: IR.PopRegister(YReg()) :: IR.PopRegister(XReg()) :: IR.PopRegister(AReg()) :: IR.ReturnFromInterrupt() :: Nil
               case _ => IR.ReturnLong() :: Nil
 
             val instructionList = functionStart ::: saveStack ::: prepareStack ::: translatedBody.toList ::: fixStack ::: funcEnd
@@ -131,8 +138,8 @@ object GrainTranslator {
 
   def main(args: Array[String]): Unit = {
     var filename = "src/main/"
-    filename += "array2d.txt"
-    //filename += "fragment.txt"
+    //filename += "array2d.txt"
+    filename += "fragment.txt"
     //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/GrainTest.txt"))
     //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/fragment.txt"))
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename)
@@ -165,5 +172,6 @@ object GrainTranslator {
     println("IR was length " ++ generatedIr.length.toString)
 
     println(symbolTable.globalScope)
+    println(symbolTable.types.map(_.toString()).foldLeft("Types->")(_ ++ "\n\t-  " ++ _))
   }
 }

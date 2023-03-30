@@ -5,6 +5,8 @@ object GlobalData {
     val logicalNotAddress = 0
     val tempStack = 2
     val dmaFlags = 4
+    val frameFinished = 6
+    val randomSeed = 10
 
     val signedMultiplyMultiplicand = 0x211b
     val signedMultiplyMultiplier = 0x221c
@@ -32,7 +34,12 @@ object GlobalData {
       ".org $0",
       "Start:",
       "Snes_Init",
-      "rep #$30"
+      "rep #$30",
+      "lda #$FFFF",
+      "sta 0",
+      "stz 2",
+      "stz 4",
+      "stz 6"
     )
   }
 }

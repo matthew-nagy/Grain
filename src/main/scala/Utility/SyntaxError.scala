@@ -115,4 +115,9 @@ object Errors{
       errors.foldLeft("Errors:")(_ ++ "\n\t- " ++ _.toString)
     )
 
+  def ClassFunctionsMustHaveDefinitions(filename: String, badToken: Token, className: String): SyntaxError =
+    SyntaxError(
+      filename, badToken.lineNumber,
+      "In class with name \"" ++ className ++ "\", function \"" ++ badToken.lexeme ++ "\" must have a definition"
+    )
 }

@@ -10,15 +10,17 @@ case class Symbol(
                    name: String,
                    token: Token,
                    dataType: Type,
-                   size: Int,
                    lineNumber: Int,
                    form: SymbolForm
-                 )
+                 ){
+  def size: Int = Utility.getTypeSize(dataType)
+}
 object Symbol{
   def make(token: Token, dataType: Type, form: SymbolForm): Symbol =
-    Symbol(token.lexeme, token, dataType, getTypeSize(dataType), token.lineNumber, form)
+    Symbol(token.lexeme, token, dataType, token.lineNumber, form)
 
   sealed trait StackStored(var stackOffset: Int = 0)
+  //TODO chances are we need a form for member variables
 
   case class GlobalVariable(var location: Int = 0) extends SymbolForm
   case class FunctionDefinition(isAllAssembly: Boolean) extends SymbolForm
@@ -133,8 +135,8 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
           case _ => throw new Exception("It shouldn't be possible that a call expression doesn't call a function")
       case Expr.Get(left, name) =>
         getTypeOf(left) match
-          case s@Utility.Struct(_) => s.typeof(name.lexeme)
-          case _ => throw new Exception("It shouldn't be possible to get from a non-struct type")
+          case s@Utility.Struct(_, _, _) => s.typeof(name.lexeme)
+          case t@_ => throw new Exception("It shouldn't be possible to get from a non-struct type")
       case Expr.GetAddress(e) =>
         Utility.Ptr(getTypeOf(e))
       case Expr.Set(left, expr) => getTypeOf(left)

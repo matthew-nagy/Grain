@@ -14,50 +14,8 @@ frameCount: word = 0
 
 cellAlivePoint: word = 0xB000
 
-//include "src/main/GrainLib/Random.grain"
-
-func setSeed(value: word){
-    asm{
-        "lda 6, s"
-        "sta 10"
-    }
-}
-
-func random():word{
-    asm{
-        "sep #$30"
-
-        "lda 11"
-        "tay"
-        "lsr"
-        "lsr"
-        "lsr"
-        "sta 11"
-        "lsr"
-        "eor 11"
-        "lsr"
-        "eor 11"
-        "eor 10"
-        "sta 11"
-
-        "tya"
-        "sta 10"
-        "asl"
-        "eor 10"
-        "asl"
-        "eor 10"
-        "asl"
-        "asl"
-        "asl"
-        "eor 10"
-        "sta 10"
-
-        "rep #$30"
-        "lda 10"
-        "plx"
-        "rtl"
-    }
-}
+include "src/main/GrainLib/Random.grain"
+include "src/main/GrainLib/stdlib.grain"
 
 func setupGolBoard(){
     val: word
@@ -111,7 +69,7 @@ func stepGameOfLife(){
 }
 
 func delayLama(){
-    for i: word = 0; i < 200; i = i + 1 do asm{"wai"}
+    for i: word = 0; i < 200; i = i + 1 do frame()
 }
 
 func main(){
@@ -133,7 +91,7 @@ func main(){
             statePtr = nextStatePtr
             nextStatePtr = tempStatePtr
         //}
-        asm{"wai"}
+        frame()
     }
 }
 
