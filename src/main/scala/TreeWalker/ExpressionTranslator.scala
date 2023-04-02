@@ -4,6 +4,7 @@ import Grain.Expr.*
 import Grain.*
 import Utility.{Token, TokenType}
 
+/*
 object Indexing{
 
   private def maybeGetPowerOf2(value: Int): Option[Int] = {
@@ -51,16 +52,15 @@ object Indexing{
       case XReg() => IR.TransferToX(AReg()) :: Nil
       case YReg() => IR.TransferToY(AReg()) :: Nil
   }
-  private def getAddressOfVariableInto(name: Token, into: TargetReg, scope: TranslatorScope, addressMapper: Int => Int = num => num): List[IR.Instruction] = {
+  private def getAddressOfVariableInto(name: Token, into: TargetReg, scope: TranslatorScope): List[IR.Instruction] = {
     val address = scope.getAddress(name.lexeme)
     address match
       case Direct(value) =>
-        IR.Load(Immediate(addressMapper(value)), into)
+        IR.Load(Immediate(value), into)
           .addComment("Load in the global known value") :: Nil
       case StackRelative(offset) =>
-
         val getStackAddress = IR.TransferToAccumulator(StackPointerReg()).addComment("Get address of stack variable") ::
-          IR.ClearCarry() :: IR.AddCarry(Immediate(addressMapper(offset))) :: getPutFromAccumulatorToDesiredReg(into)
+          IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: getPutFromAccumulatorToDesiredReg(into)
         getStackAddress
   }
   private def getAddressOfIndexInto(of: Expr.Expr, by: Expr.Expr, into: TargetReg, scope: TranslatorScope): List[IR.Instruction] = {
@@ -156,29 +156,169 @@ object Indexing{
 
     IRBuffer().append(list)
   }
-}
+}*/
 
 object Getting{
+  private def getInternalSizeOfArray(ar: Expr.Expr, scope: Scope): Int =
+    Utility.getTypeSize(Utility.stripPtrType(scope.getTypeOf(ar)))
 
-  private def offsetAddress(address: Address, offset: Int): Address = Direct(0)
-  def getByIndirection(scope:TranslatorScope, ptrCode: Expr.Expr, name: Token): List[IR.Instruction] =
-    scope.inner.getTypeOf(ptrCode) match
-      case Utility.Ptr(structType) if structType.isInstanceOf[Utility.Struct] =>
-        val offset = structType.asInstanceOf[Utility.Struct].getOffsetOf(name.lexeme)
-        ptrCode match
-          //TODO could add a case for global arrays or something
-          case Variable(varToken) =>
-            val varAddress = scope.getAddress(varToken.lexeme)
-              IR.Load(varAddress, AReg()) :: IR.TransferToX(AReg()) :: IR.Load(DirectIndexed(offset, XReg()), AReg()) :: Nil
-          case _ =>
-            Indexing.getAddressInto(ptrCode, AReg(), scope).toList ::: (
-              IR.TransferToX(AReg()) :: IR.Load(DirectIndexed(offset, XReg()), AReg()) :: Nil
-            )
-      case t@_ => throw new Exception("Should have caught this in the type checker, cannot index non struct type")
-  def getByVariable(scope:TranslatorScope, left: Expr.Variable, name: Token): List[IR.Instruction] = {
-    println("Where is the funny")
-    Nil
+  private def maybeGetPowerOf2(value: Int): Option[Int] = {
+    var result: Option[Int] = None
+    var currentValue = value
+    var currentPowerOf2 = 0
+    while currentValue > 0 do {
+      currentValue = currentValue >> 1
+      currentPowerOf2 += 1
+      if ((currentValue & 1) > 0) {
+        if (result.isDefined) { //Already found a bit, can't be a power of 2
+          return None
+        }
+        else {
+          result = Some(currentPowerOf2)
+        }
+      }
+    }
+
+    result
   }
+
+  private def correctAccumulatorIndexByType(indexing: Expr.Expr, scope: Scope): List[IR.Instruction] = {
+    val size = getInternalSizeOfArray(indexing, scope)
+    size match
+      case 1 => List.empty[IR.Instruction]
+      case x if maybeGetPowerOf2(x).isDefined =>
+        IR.ShiftLeft(AReg(), maybeGetPowerOf2(x).get) :: Nil
+      case _ =>
+        throw new Exception("Can't multiply yet. Size of " ++ size.toString ++ " isn't possible") //TODO
+  }
+
+  private def offsetAddress(address: Offsetable, offset: Int): (Address, IRBuffer) =
+    address match
+      case Direct(value) => (Direct(value + offset), IRBuffer())
+      case DirectIndexed(value, by) => (DirectIndexed(value + offset, by), IRBuffer())
+      case DirectIndirectIndexed(value, by) => (DirectIndirectIndexed(value, by), IRBuffer()
+        .append(IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: IR.TransferAccumulatorTo(by) :: Nil)
+      )
+      case StackRelative(value) => (StackRelative(value + offset), IRBuffer())
+      case StackRelativeIndirectIndexed(value, by) => (StackRelativeIndirectIndexed(value, by), IRBuffer()
+        .append(IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: IR.TransferToAccumulator(by) :: Nil)
+      )
+
+  def asIndirect(address: Address): Option[Address] =
+    address match
+      case Direct(location) => Some(DirectIndirect(location))
+      case DirectIndexed(location, by) => Some(DirectIndexedIndirect(location, by))
+      case _ => None
+  def simpleRemoveIndirect(address: SimpleIndirectRemovable) : Address =
+    address match
+      case DirectIndirect(location) => Direct(location)
+      case DirectIndexedIndirect(location, by) => DirectIndexed(location, by)
+
+  def indexAddress(address: Indexable, by: Expr.Expr, scope: TranslatorScope, onceInAccumulator: List[IR.Instruction]): (Address, IRBuffer) =
+    address match
+      case Direct(value) => (DirectIndexed(value, XReg()), ExpressionTranslator.getFromAccumulator(by, scope).toGetThere
+        .append(onceInAccumulator)
+        .append(IR.TransferToX(AReg()))
+      )
+      case DirectIndirect(value) => (DirectIndirectIndexed(value, XReg()), ExpressionTranslator.getFromAccumulator(by, scope).toGetThere
+        .append(IR.TransferToX(AReg()))
+      )
+
+  def getAddressIntoAcumulator(address: Address): List[IR.Instruction] = {
+    address match
+      case Direct(value) => IR.Load(Immediate(value), AReg()) :: Nil
+      case DirectIndexed(offset, by) => IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: Nil
+      case DirectIndirect(value) => IR.Load(Direct(value), AReg()) :: Nil
+      case DirectIndexedIndirect(offset, by) => IR.Load(DirectIndexed(offset, by), AReg()) :: Nil
+      case DirectIndirectIndexed(offset, by) => IR.PushRegister(by) :: IR.Load(DirectIndirect(offset), AReg()) ::
+        IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil
+      case StackRelative(offset) => IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: Nil
+      case StackRelativeIndirectIndexed(stackOffset, by) => IR.PushRegister(by) :: IR.Load(StackRelative(stackOffset + 2), AReg()) :: IR.ClearCarry() ::
+        IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil
+  }
+
+  def getIndexOfPtr(ptrExpr: Expr.Expr, index: Expr.Expr, scope: TranslatorScope): (Address, IRBuffer) = {
+    (Direct(-1), IRBuffer().append(IR.NOP().addComment("in Ptr")))
+  }
+
+  def getIndexOfArray(arrayExpr: Expr.Expr, index: Expr.Expr, scope: TranslatorScope):(Address, IRBuffer) = {
+    val (addressOfArray, codeToGetAddressOfArray) = getAddressOf(arrayExpr, scope)
+    val sizeOfArrayType = getInternalSizeOfArray(arrayExpr, scope.inner)
+    index match
+      case NumericalLiteral(value) =>
+        addressOfArray match
+          case offsettableAddressOfArray: Offsetable =>
+            val (offsetArrayAddress, toOffsetArrayAddress) = offsetAddress(offsettableAddressOfArray, value * sizeOfArrayType)
+            (offsetArrayAddress, codeToGetAddressOfArray.append(toOffsetArrayAddress))
+          case _ =>
+            (DirectIndexed(value * sizeOfArrayType, XReg()), codeToGetAddressOfArray
+              .append(getAddressIntoAcumulator(addressOfArray))
+              .append(IR.TransferToX(AReg()))
+            )
+      case _ =>
+        addressOfArray match
+          case indexibleAddressOfArray: Indexable =>
+            val (indexedAddress, toIndexAddress) = indexAddress(indexibleAddressOfArray, index, scope, correctAccumulatorIndexByType(arrayExpr, scope.inner))
+            (indexedAddress, codeToGetAddressOfArray.append(toIndexAddress))
+          case _ =>
+            val toStack = codeToGetAddressOfArray
+              .append(getAddressIntoAcumulator(addressOfArray))
+              .append(IR.PushRegister(AReg()))
+            scope.push()
+            val indexIntoAcc = ExpressionTranslator.getFromAccumulator(index, scope).toGetThere.append(
+              correctAccumulatorIndexByType(arrayExpr, scope.inner)
+            )
+            val addThenToX: List[IR.Instruction] = IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: IR.TransferToX(AReg()) :: Nil
+            scope.pop()
+            (DirectIndexed(0, XReg()), toStack.append(indexIntoAcc).append(addThenToX))
+  }
+
+  def getAddressOf(expr: Expr.Expr, scope: TranslatorScope): (Address, IRBuffer) = {
+    def useAddressAsIndirectIndexed(address: Address, offset: Int, toGetHere: IRBuffer): (Address, IRBuffer) =
+      (DirectIndexed(offset, XReg()), toGetHere.append(IR.Load(address, AReg()) :: IR.TransferToX(AReg()) :: Nil))
+
+
+    expr match
+      case Variable(varToken) => (scope.getAddress(varToken.lexeme), IRBuffer())
+      case Get(innerExpr, memberToken) =>
+        val (toGetThereAddress, toGetThereCode) = getAddressOf(innerExpr, scope)
+        val offset = scope.inner.getTypeOf(innerExpr).asInstanceOf[Utility.Struct].getOffsetOf(memberToken.lexeme)
+        toGetThereAddress match
+          case offsetableAddress: Offsetable =>
+            val (newAddress, toOffset) = offsetAddress(offsetableAddress, offset)
+            (newAddress, toGetThereCode.append(toOffset))
+          case indirection: SimpleIndirectRemovable =>
+            val withoutIndirection = simpleRemoveIndirect(indirection)
+            useAddressAsIndirectIndexed(withoutIndirection, 0, toGetThereCode)
+      case Indirection(innerExpr) =>
+        val (toGetThereAddress, toGetThereCode) = getAddressOf(innerExpr, scope)
+        asIndirect(toGetThereAddress) match
+          case Some(indirectAddress) => (indirectAddress, toGetThereCode)
+          case _ =>  useAddressAsIndirectIndexed(toGetThereAddress, 0, toGetThereCode)
+
+      //The big one
+      case GetIndex(of, by) =>
+        scope.inner.getTypeOf(of) match
+          case _: Utility.Ptr => getIndexOfPtr(of, by, scope)
+          case _: Utility.Array => getIndexOfArray(of, by, scope)
+          case t@_ => throw new Exception("Cannot index type " ++ t.toString)
+      case _ =>
+        if(scope.inner.getTypeOf(expr).isInstanceOf[Utility.Ptr]){
+          val intoAcc = ExpressionTranslator.getFromAccumulator(expr, scope)
+          (DirectIndexed(0, XReg()), intoAcc.toGetThere.append(IR.TransferToX(AReg())))
+        }
+        else{
+          throw Exception("Cannot get the address of a non pointer type")
+        }
+
+  }
+
+  def asStruct(varName: Token, scope: TranslatorScope): Utility.Struct =
+    scope.inner(varName.lexeme).dataType match
+      case ptr: Utility.Ptr if ptr.to.isInstanceOf[Utility.Struct] => ptr.to.asInstanceOf[Utility.Struct]
+      case ar: Utility.Array if ar.of.isInstanceOf[Utility.Struct] => ar.of.asInstanceOf[Utility.Struct]
+      case st: Utility.Struct => st
+      case _ => throw new Exception("Isn't a struct or struct ptr")
 }
 
 object ExpressionTranslator {
@@ -192,10 +332,11 @@ object ExpressionTranslator {
         val varSymbol = scope.getSymbol(name.lexeme)
         varSymbol.dataType match
           case _: Utility.Array =>
-            val getAddressOfArray = Indexing.getAddressInto(arg, AReg(), scope).append(IR.PushRegister(AReg()))
+            val (addressOfArray, getAddressOfArray) = Getting.getAddressOf(arg, scope)
             scope.push()
-            Some(getAddressOfArray.toList)
+            Some(getAddressOfArray.append(Getting.getAddressIntoAcumulator(addressOfArray)).append(IR.PushRegister(AReg())).toList)
           case _ =>None
+          //TODO maybe a Get special case would be nice too
       case _ => None
 
     specialCaseResult match
@@ -227,7 +368,6 @@ object ExpressionTranslator {
   }
 
   private def getRegisterShifts(value: Expr.Expr, shiftBy: Expr.Expr, shiftInstruction: IR.Instruction, scope: TranslatorScope): IRBuffer = {
-    println(value.toString ++ " shifting by " ++ shiftBy.toString)
     shiftBy match
       case Expr.NumericalLiteral(numericalValue) =>
         ExpressionTranslator.getFromAccumulator(value, scope).toGetThere.append((for i <- Range(0, numericalValue) yield shiftInstruction).toList)
@@ -245,10 +385,29 @@ object ExpressionTranslator {
 
   def getFromAccumulator(expr: Expr.Expr, scope: TranslatorScope): AccumulatorLocation = {
     val result: AccumulatorLocation | StackLocation = expr match
-      case Assign(varToken, arg) =>
-        val intoAccumulator = getFromAccumulator(arg, scope)
-        val targetAddress = scope.getAddress(varToken.lexeme)
-        AccumulatorLocation(intoAccumulator.toGetThere.append(IR.Store(targetAddress, AReg()).addComment("Storing the assignment")))
+      case Assign(target, arg) =>
+        target match
+          case varToken: Utility.Token =>
+            val intoAccumulator = getFromAccumulator(arg, scope)
+            val targetAddress = scope.getAddress(varToken.lexeme)
+            AccumulatorLocation(intoAccumulator.toGetThere.append(IR.Store(targetAddress, AReg()).addComment("Storing the assignment")))
+          case getter: Expr.Get =>
+            val (address, toGetAddress) = Getting.getAddressOf(getter, scope)
+            if(toGetAddress.toList.isEmpty){
+              val intoAccumulator = getFromAccumulator(arg, scope)
+              AccumulatorLocation(intoAccumulator.toGetThere.append(IR.Store(address, AReg()).addComment("Assigning simple getter")))
+            }
+            else{
+              scope.rememberStackLocation()
+              val intoStack = getFromStack(arg, scope)
+              val (addressWithStackCorrection, toGetAddressWithStackCorrection) = Getting.getAddressOf(getter, scope) //get again with the stack sorted
+              AccumulatorLocation(
+                intoStack.toGetThere
+                  .append(toGetAddressWithStackCorrection)
+                  .append(IR.PopRegister(AReg()) :: IR.Store(addressWithStackCorrection, AReg()) :: Nil)
+                  .append(scope.getFixStackDecay())
+              )
+            }
       case BooleanLiteral(value) => AccumulatorLocation(
         loadImmediate(AReg(), if(value) 1 else 0)
       )
@@ -272,9 +431,17 @@ object ExpressionTranslator {
         val buffer = IRBuffer()
         op match
           case Operation.Binary.ShiftLeft =>
-            buffer.append(getRegisterShifts(left, right, IR.ShiftLeft(AReg()), scope))
+            right match
+              case Expr.NumericalLiteral(value) =>
+                buffer.append(IR.ShiftLeft(AReg(), value))
+              case _ =>
+                buffer.append(getRegisterShifts(left, right, IR.ShiftLeft(AReg(), 1), scope))
           case Operation.Binary.ShiftRight =>
-            buffer.append(getRegisterShifts(left, right, IR.ShiftRight(AReg()), scope))
+            right match
+              case Expr.NumericalLiteral(value) =>
+                buffer.append(IR.ShiftRight(AReg(), value))
+              case _ =>
+                buffer.append(getRegisterShifts(left, right, IR.ShiftRight(AReg(), 1), scope))
           case x if Operation.Groups.RelationalTokens.contains(x) =>
             scope.rememberStackLocation()
             val conditionCode = StatementTranslator.getConditionCode(expr, scope, Label("++"), StatementTranslator.BranchType.IfFalse, 0)
@@ -301,42 +468,49 @@ object ExpressionTranslator {
       case FunctionCall(function, arguments) => translateFunctionCall(function, arguments, scope)
       case NumericalLiteral(value) => AccumulatorLocation(loadImmediate(AReg(), value))
       case Indirection(expr) =>
-        expr match
-          case Variable(token) => AccumulatorLocation(IRBuffer().append(
-            IR.Load(scope.getAddress(token.lexeme), AReg()) :: IR.TransferToX(AReg()) ::
-              IR.Load(DirectIndexed(0, XReg()), AReg()) :: Nil
-          ))
-          case _ => throw new Exception("Cannot perform indirection on " ++ expr.toString)
+        val (address, irToGetTheAddress) = Getting.getAddressOf(expr, scope)
+        Getting.asIndirect(address) match
+          case Some(indirectAddress) => AccumulatorLocation(irToGetTheAddress.append(IR.Load(indirectAddress, AReg())))
+          case None =>
+            AccumulatorLocation(IRBuffer().append(irToGetTheAddress).append(
+                IR.Load(address, AReg()) :: IR.TransferToX(AReg()) :: IR.Load(DirectIndexed(0, XReg()), AReg()) :: Nil
+              ))
       case SetIndex(of, to) =>
-        val addressInA = Indexing.getAddressInto(of, AReg(), scope).toList
-        val pushAddressToStack = IR.PushRegister(AReg()).addComment("Pushing address to set value to") :: Nil
-        scope.push()
-        val getWhatToSetInA = getFromAccumulator(to, scope).toGetThere.toList
-        val getAddressInXAndSet = IR.PopRegister(XReg()) :: IR.Store(DirectIndexed(0, XReg()), AReg()) :: Nil
-        scope.pop()
-        AccumulatorLocation(
-          IRBuffer().append(addressInA ::: pushAddressToStack ::: getWhatToSetInA ::: getAddressInXAndSet)
-        )
+        scope.rememberStackLocation()
+        val getWhatToSet = getFromAccumulator(to, scope).toGetThere
+        getWhatToSet.toList match
+          case IR.Load(x, AReg()) :: Nil if !(
+            x.isInstanceOf[StackRelativeIndirectIndexed] || x.isInstanceOf[DirectIndexedIndirect] ||x.isInstanceOf[DirectIndexed] || x.isInstanceOf[DirectIndirectIndexed]
+            ) =>
+            val (addressOf, toGetAddressOf) = Getting.getAddressOf(of, scope)
+            AccumulatorLocation(toGetAddressOf.append(IR.Load(x, AReg()) :: IR.Store(addressOf, AReg()) :: Nil))
+          case _ =>
+            val getWhatToSetToStack = getWhatToSet.append(IR.PushRegister(AReg()))
+            scope.push()
+            val (addressOf, toGetAddressOf) = Getting.getAddressOf(of, scope)
+            scope.pop()
+            val setting = IR.PopRegister(AReg()) :: IR.Store(addressOf, AReg()) :: Nil
+            AccumulatorLocation(getWhatToSetToStack.append(toGetAddressOf).append(setting))
+
 
       case Variable(token) => AccumulatorLocation(
         scope.getSymbol(token.lexeme).dataType match
           case _: Utility.Array => //Get the address
-            IRBuffer().append(Indexing.getAddressInto(expr, AReg(), scope))
+            val (arrayAddress, getArrayAddress) = Getting.getAddressOf(expr, scope)
+            getArrayAddress.append(Getting.getAddressIntoAcumulator(arrayAddress))
           case _ =>
             IRBuffer().append(IR.Load(scope.getAddress(token.lexeme), AReg()))
       )
       case GetAddress(expr) =>
-        AccumulatorLocation(IRBuffer().append(Indexing.getAddressInto(expr, AReg(), scope)))
+        val (address, toGetAddress) = Getting.getAddressOf(expr, scope)
+        AccumulatorLocation(toGetAddress.append(Getting.getAddressIntoAcumulator(address)))
       case GetIndex(of, by) =>
-        AccumulatorLocation(IRBuffer().append(Indexing.getIndexValue(of, by, scope)))
+        val (address, toGetTheAddress) = Getting.getAddressOf(GetIndex(of, by), scope)
+        AccumulatorLocation(toGetTheAddress.append(IR.Load(address, AReg())))
       case Grouping(internalExpr) => getFromAccumulator(internalExpr, scope)
       case Get(left, name) =>
-        AccumulatorLocation(IRBuffer().append(
-          left match
-            case Indirection(indirectionExpr) => Getting.getByIndirection(scope, indirectionExpr, name)
-            case v@Variable(_) => Getting.getByVariable(scope, v, name)
-            case _ => throw new Exception("Can't do " ++ expr.toString ++ " to structs")
-        ))
+        val (address, toGetThatAddress) = Getting.getAddressOf(Get(left, name), scope)
+        AccumulatorLocation(toGetThatAddress.append(IR.Load(address, AReg())))
       case _ =>
         throw new Exception("Cannot translate expression -> " ++ expr.toString)
     result match
@@ -355,12 +529,17 @@ object ExpressionTranslator {
     }
     val toGetToStack = new IRBuffer
     expr match
-      case Assign(varToken, arg) =>
-        val intoAccumulator = getFromAccumulator(arg, scope)
-        toGetToStack.append(intoAccumulator.toGetThere)
-        val targetAddress = scope.getAddress(varToken.lexeme)
-        toGetToStack.append(IR.Store(targetAddress, AReg()))
-        StackLocation(targetAddress, toGetToStack)
+      case Assign(target, arg) =>
+        target match
+          case varToken: Utility.Token =>
+            val intoAccumulator = getFromAccumulator(arg, scope)
+            toGetToStack.append(intoAccumulator.toGetThere)
+            val targetAddress = scope.getAddress(varToken.lexeme)
+            toGetToStack.append(IR.Store(targetAddress, AReg()))
+            StackLocation(targetAddress, toGetToStack)
+          case getter: Expr.Get =>
+            println("Do stack getter assign case")
+            StackLocation(Direct(-1), IRBuffer().append(IR.NOP().addComment("Do the getter in assign stack!")))
 
       case UnaryOp(_, _) => stackFromAccumulator(expr, scope)
       case BinaryOp(_, _, _) => stackFromAccumulator(expr, scope)
@@ -369,16 +548,18 @@ object ExpressionTranslator {
       case Variable(name) =>
         scope.getSymbol(name.lexeme).dataType match
           case _: Utility.Array => //Get the address
-            val toA = Indexing.getAddressInto(expr, AReg(), scope).toList
+            val (address, toGetAddress) = Getting.getAddressOf(expr, scope)
+            val toA = toGetAddress.append(Getting.getAddressIntoAcumulator(address))
             val pushToStack = IR.PushRegister(AReg()) :: Nil
             scope.push()
-            StackLocation(StackRelative(2), IRBuffer().append(toA ::: pushToStack))
+            StackLocation(StackRelative(2), IRBuffer().append(toA.append(pushToStack)))
           case _ =>
             StackLocation(scope.getAddress(name.lexeme), IRBuffer())
       case FunctionCall(_, _) => stackFromAccumulator(expr, scope)
       case GetAddress(_) => stackFromAccumulator(expr, scope)
       case GetIndex(_, _) => stackFromAccumulator(expr, scope)
       case Grouping(internalExpr) => getFromStack(internalExpr, scope)
+      case Get(_, _) => stackFromAccumulator(expr, scope)
       case _ => throw new Exception("Not handled in stack yet (" ++ expr.toString ++ ")")
   }
 

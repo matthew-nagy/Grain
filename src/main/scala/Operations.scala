@@ -80,7 +80,7 @@ package Expr:
   import Utility.Word
 
   sealed trait Expr
-  case class Assign(name: Token, arg: Expr) extends Expr
+  case class Assign(name: Token | Get, arg: Expr) extends Expr
   case class BooleanLiteral(value: Boolean) extends Expr
   case class UnaryOp(op: Operation.Unary, arg: Expr) extends Expr
 
@@ -96,15 +96,12 @@ package Expr:
 
   case class GetIndex(of: Expr, by: Expr) extends Expr
 
-  case class Set(left: Expr, right: Expr) extends Expr
-
   case class SetIndex(of: Expr, to: Expr) extends Expr
   case class Grouping(internalExpr: Expr) extends Expr
 
   def OptimiseExpression(expr: Expr): Expr =
     expr match
       case Assign(n, e) => Assign(n, OptimiseExpression(e))
-      case Set(n, e) => Set(OptimiseExpression(n), OptimiseExpression(e))
       case u @ UnaryOp(_, _) => OptimiseUnaryExpression(u)
       case b @ BinaryOp(_, _, _) => OptimiseBinaryExpression(b)
       case FunctionCall(name, args) =>

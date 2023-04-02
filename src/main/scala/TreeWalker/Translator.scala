@@ -46,14 +46,23 @@ object Translator {
       case AReg() => changeType ++ "c A"
       case XReg() => changeType ++ "x"
       case YReg() => changeType ++ "y"
+    def unrollSequence(sequence: IndexedSeq[String]): String =
+      if (sequence.length == 1) {
+        sequence.head
+      }
+      else {
+        sequence.tail.foldLeft(sequence.head)(_ ++ "\n" ++ _)
+      }
     a match
       case AddCarry(op) => smpl("adc", op)
       case SubtractCarry(op) => smpl("sbc", op)
       case AND(op) => smpl("and", op)
       case EOR(op) => smpl("eor", op)
       case ORA(op) => smpl("ora", op)
-      case ShiftLeft(op) => smpl("asl", op)
-      case ShiftRight(op) => smpl("lsr", op)
+      case ShiftLeft(op, times) =>
+        unrollSequence(for i <- Range(0, times) yield smpl("asl", op))
+      case ShiftRight(op, times) =>
+        unrollSequence(for i <- Range(0, times) yield smpl("lsr", op))
       case RotateLeft(op) => smpl("rol", op)
       case RotateRight(op) => smpl("ror", op)
       case BitTest(op) => smpl("bit", op)

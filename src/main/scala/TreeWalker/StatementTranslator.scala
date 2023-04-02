@@ -125,14 +125,11 @@ object StatementTranslator {
         translateStatement(body, elseScope).toList :::
         elseScope.reduceStack()
       case Return(value) =>
-        val getStackPointerToX = IR.Load(StackRelative(scope.getStackFrameOffset), AReg()).addComment("Put where to return stack into X") ::
-          IR.TransferToX(AReg()) :: Nil
-        val commandsToLoadReturn = value match
-          case None => Nil
-          case Some(value) => toAccumulator(value, scope)
-        val commandsToResetStackAndReturn = IR.TransferXTo(StackPointerReg()).addComment("Reset stack") ::  IR.ReturnLong() :: Nil
-
-        getStackPointerToX ::: commandsToLoadReturn ::: commandsToResetStackAndReturn
+        value match
+          case None => IR.Load(StackRelative(scope.getStackFrameOffset), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()).addComment("Reset the stack") :: IR.ReturnLong() :: Nil
+          case Some(value) => toAccumulator(value, scope) :::
+            (IR.TransferAccumulatorTo(YReg()) :: IR.Load(StackRelative(scope.getStackFrameOffset), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) ::
+              IR.TransferYTo(AReg()) :: IR.ReturnLong() :: Nil)
 
       case VariableDecl(varDecl) => toAccumulator(varDecl, scope)
       case While(condition, body, lineNumber) =>

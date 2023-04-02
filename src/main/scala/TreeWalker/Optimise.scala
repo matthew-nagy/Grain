@@ -1,7 +1,7 @@
 package TreeWalker
 
 import Grain.GlobalData
-import TreeWalker.IR.PushRegister
+import TreeWalker.IR.{Instruction, PushRegister}
 
 import scala.annotation.tailrec
 
@@ -23,6 +23,10 @@ object Optimise {
   //    If you have already loaded/ stored the first stack value, you know that its already in the right place
   //  Finds pushing A, loading A, then pulling to X/Y
   //    You can just transfer to X/Y and not touch the stack. Saves 5 cycles.
+  //  Finds pushing A, loading another register, then pulling A
+  //    You don't need to mess with A there
+  //  Finds pushing then immediately pulling a register
+  //    Either don't do anything, or transfer
   @tailrec
   def stackUsage(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
     val next: Result = instructions match
@@ -37,14 +41,21 @@ object Optimise {
         Result(IR.JumpLongSaveReturn(label) :: IR.PushRegister(AReg()) :: Nil, remaining)
       case IR.Load(StackRelative(2), reg1) :: PushRegister(reg2) :: IR.JumpLongSaveReturn(func) ::
         IR.PopDummyValue(_) :: remaining if reg1 == reg2 =>
-
        Result(IR.JumpLongSaveReturn(func) :: Nil, remaining)
       case IR.Store(StackRelative(2), reg1) :: PushRegister(reg2) :: IR.JumpLongSaveReturn(func) ::
         IR.PopDummyValue(_)  :: remaining if reg1 == reg2 =>
-
         Result(IR.Store(StackRelative(2), reg1) :: IR.JumpLongSaveReturn(func) :: Nil, remaining)
       case IR.PushRegister(AReg()) :: IR.Load(imOrAdd, AReg()) :: IR.PopRegister(targetReg) :: remaining if targetReg != AReg() =>
         Result(IR.TransferAccumulatorTo(targetReg) :: IR.Load(imOrAdd, AReg()) :: Nil, remaining)
+      case IR.PushRegister(firstReg1) :: IR.Load(imOrAd, secondReg) :: IR.PopRegister(firstReg2) :: remaining if firstReg1 == firstReg2 && secondReg != firstReg1 =>
+        Result(IR.Load(imOrAd, secondReg) :: Nil, remaining)
+      case IR.PushRegister(reg1) :: IR.PopRegister(reg2) :: remaining if reg1 == reg2 => Result(Nil, remaining)
+      case IR.PushRegister(reg1) :: IR.PopRegister(reg2) :: remaining =>
+        reg1 match
+          case AReg() => Result(IR.TransferAccumulatorTo(reg2) :: Nil, remaining)
+          case XReg() => Result(IR.TransferXTo(reg2) :: Nil, remaining)
+          case YReg() => Result(IR.TransferYTo(reg2) :: Nil, remaining)
+          case _ => Result(instructions.head :: Nil, instructions.tail)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
     Optimise.stackUsage(next.remaining, alreadyOptimised ::: next.optimisedFragment)
@@ -80,6 +91,8 @@ object Optimise {
   //    In general a transfer would be faster, they are always 2 cycles, stack relative loading may be 4 or more
   //  Finds pointer indexing with x when it could be an indirection
   //    Saves a transfer and indexed load, if you can index it
+  //  Finds loading something into A then transfering to X/Y, when that could be loaded directly into X/Y
+  //    Changes to just load into the register
   def registerUsage(instructions: List[IR.Instruction]): List[IR.Instruction] = {
     instructions match
       case Nil => Nil
@@ -95,27 +108,31 @@ object Optimise {
               case YReg() => IR.TransferYTo(reg2)
             ) :: Optimise.registerUsage(remaining)
         }
-      case IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) ::
-            IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: IR.ShiftLeft(AReg()) :: remaining =>
-        IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0xFF00)) :: Optimise.registerUsage(remaining)
-      case IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) ::
-            IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) :: IR.ShiftRight(AReg()) ::remaining =>
-        IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0x00FF)) :: Optimise.registerUsage(remaining)
-      case IR.Load(address, AReg()) :: transfer :: IR.Load(DirectIndexed(0, XReg()), AReg()) :: remaining=>
+      case IR.Load(address, AReg()) :: transfer :: IR.Load(DirectIndexed(directOffset, XReg()), AReg()) :: remaining=>
         val validTransfer = transfer match
           case IR.TransferToX(AReg()) => true
           case IR.TransferAccumulatorTo(XReg()) => true
           case _ => false
         if(validTransfer){
           address match
-            case Direct(directAddress) => IR.Load(DirectIndirect(directAddress), AReg()) :: Optimise.registerUsage(remaining)
-            case StackRelative(stackAddress) => IR.Load(Immediate(0), YReg()) :: IR.Load(StackRelativeIndirectIndexed(stackAddress,YReg()), AReg()) :: Optimise.registerUsage(remaining)
-            case DirectIndexed(directAddress, indexReg) => IR.Load(DirectIndexedIndirect(directAddress, indexReg), AReg()) :: Optimise.registerUsage(remaining)
+            case Direct(directAddress) => IR.Load(DirectIndirect(directAddress + directOffset), AReg()) :: Optimise.registerUsage(remaining)
+            case StackRelative(stackAddress) => IR.Load(Immediate(directOffset), YReg()) :: IR.Load(StackRelativeIndirectIndexed(stackAddress,YReg()), AReg()) :: Optimise.registerUsage(remaining)
+            case DirectIndexed(directAddress, indexReg) if directOffset == 0 => IR.Load(DirectIndexedIndirect(directAddress, indexReg), AReg()) :: Optimise.registerUsage(remaining)
             case _ => instructions.head :: Optimise.registerUsage(instructions.tail)
         }
         else{
           instructions.head :: Optimise.registerUsage(instructions.tail)
         }
+      case IR.Load(imOrAd, AReg()) :: transfer :: remaining
+        if imOrAd.isInstanceOf[Immediate] | imOrAd.isInstanceOf[Direct]
+      =>
+        transfer match
+          case IR.TransferToX(AReg()) => IR.Load(imOrAd, XReg()) :: Optimise.registerUsage(remaining)
+          case IR.TransferAccumulatorTo(XReg()) => IR.Load(imOrAd, XReg()) :: Optimise.registerUsage(remaining)
+          case IR.TransferToY(AReg()) => IR.Load(imOrAd, YReg()) :: Optimise.registerUsage(remaining)
+          case IR.TransferAccumulatorTo(YReg()) => IR.Load(imOrAd, YReg()) :: Optimise.registerUsage(remaining)
+          case _ => instructions.head :: Optimise.registerUsage(instructions.tail)
+
       case _ =>
         instructions.head :: Optimise.registerUsage(instructions.tail)
   }
@@ -130,9 +147,31 @@ object Optimise {
         Result(IR.Load(something, AReg()) :: IR.IncrementReg(AReg()) :: Nil, remaining)
       case IR.ClearCarry() :: IR.AddCarry(Immediate(1)) :: remaining =>
         Result(IR.IncrementReg(AReg()) :: Nil, remaining)
+      case IR.ShiftLeft(AReg(), num) :: remaining if num >= 8=>
+        Result(IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0xFF00)) :: (if (num == 8) Nil else IR.ShiftLeft(AReg(), num - 8) :: Nil), remaining)
+      case IR.ShiftRight(AReg(), num) :: remaining if num >= 8=>
+        Result(IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0x00FF)) :: (if (num == 8) Nil else IR.ShiftRight(AReg(), num - 8) :: Nil), remaining)
       case _ => Result(instructions.head :: Nil, instructions.tail)
     Optimise.hardwareQuirks(next.remaining, alreadyOptimised ::: next.optimisedFragment)
   }
+
+  //Not finished due to bad IR planning. The most likely or easy cases are caught though
+  def transfers(instructions: List[IR.Instruction]) : List[IR.Instruction] =
+    instructions match
+      case Nil => Nil
+      case IR.TransferToX(otherReg) :: IR.TransferXTo(otherReg2) :: remaining if otherReg == otherReg2 =>
+        Optimise.transfers(remaining)
+      case IR.TransferAccumulatorTo(XReg()) :: IR.TransferXTo(AReg()) :: remaining =>
+        Optimise.transfers(remaining)
+      case IR.TransferAccumulatorTo(XReg()) :: IR.TransferToAccumulator(XReg()) :: remaining =>
+        Optimise.transfers(remaining)
+      case IR.TransferToX(AReg()) :: IR.TransferToAccumulator(XReg()) :: remaining =>
+        Optimise.transfers(remaining)
+      case IR.TransferToY(otherReg) :: IR.TransferYTo(otherReg2) :: remaining if otherReg == otherReg2 =>
+        Optimise.transfers(remaining)
+      case IR.TransferToAccumulator(otherReg) :: IR.TransferAccumulatorTo(otherReg2) :: remaining if otherReg == otherReg2 =>
+        Optimise.transfers(remaining)
+      case _ => instructions.head :: Optimise.transfers(instructions.tail)
 
   def apply(instructions: List[IR.Instruction]): List[IR.Instruction] = {
     var result = instructions
@@ -145,9 +184,14 @@ object Optimise {
     if (GlobalData.optimisationFlags.optimiseDirectAddresses) {
       result = Optimise.directAddresses(result)
     }
+    if(GlobalData.optimisationFlags.optimiseTransfers){
+      result = Optimise.transfers(result)
+    }
     if(GlobalData.optimisationFlags.optimiseHardwareQuirks){
       result = Optimise.hardwareQuirks(result)
     }
+
+
     if(result.length == instructions.length){
       result
     }

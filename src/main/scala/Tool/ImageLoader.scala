@@ -138,10 +138,8 @@ object ImageLoader {
 
   def toSNESColour(encodedColour: Int): String = {
     val colour = Colour.create(encodedColour)
-    println(colour)
     def convert(channel: Int, shift: Int): Int = (channel >> 3).toInt << shift
     val convertedInt = convert(colour.r, 0) + convert(colour.g, 5) + convert(colour.b, 10)
-    println(convert(colour.r, 0).toString ++ " " ++ convert(colour.g, 0).toString ++ " " ++ convert(colour.b, 0).toString)
     val transparencyBit = if(colour.transparent) "1" else "0"
     Range(0, 15)
       .reverse

@@ -109,7 +109,12 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
 
   def getTypeOf(expr: Expr.Expr): Type =
     expr match
-      case Expr.Assign(name, _) => apply(name.lexeme).dataType
+      case Expr.Assign(target, _) =>
+        target match
+          case name: Utility.Token =>
+            apply(name.lexeme).dataType
+          case getter: Expr.Get =>
+            getTypeOf(getter)
       case Expr.BooleanLiteral(_) => Utility.BooleanType()
       case Expr.UnaryOp(_, e) => getTypeOf(e) //Could emit warning if trying to do a weird thing with types here
       case Expr.BinaryOp(op, left, _) =>
@@ -127,6 +132,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
           case _ => Utility.stripPtrType(getTypeOf(arrayExpr))
       case Expr.SetIndex(_, to) => getTypeOf(to)
       case Expr.Indirection(e) =>
+        val TST = getTypeOf(e)
         val Utility.Ptr(innerType) = getTypeOf(e)
         innerType
       case Expr.FunctionCall(funcExpr, _) =>
@@ -139,7 +145,6 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
           case t@_ => throw new Exception("It shouldn't be possible to get from a non-struct type")
       case Expr.GetAddress(e) =>
         Utility.Ptr(getTypeOf(e))
-      case Expr.Set(left, expr) => getTypeOf(left)
       case Expr.Grouping(internalExpr) => getTypeOf(internalExpr)
       case null => throw new Exception("Matching should be exhaustive")
 }

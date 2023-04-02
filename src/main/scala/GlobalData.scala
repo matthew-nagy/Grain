@@ -14,12 +14,14 @@ object GlobalData {
   }
   
   object optimisationFlags{
-    val staticOptimiseTree = false
+    private val optimisations = true
+    val staticOptimiseTree = true
     val stackPressureOptimisations = false
-    val optimiseStackUsage = false
-    val optimiseRegisterUsage = true
-    val optimiseDirectAddresses = false
-    val optimiseHardwareQuirks = false
+    val optimiseStackUsage: Boolean = optimisations
+    val optimiseRegisterUsage: Boolean = optimisations
+    val optimiseDirectAddresses: Boolean = optimisations
+    val optimiseTransfers: Boolean = optimisations
+    val optimiseHardwareQuirks: Boolean = optimisations
   }
 
   object snesData{

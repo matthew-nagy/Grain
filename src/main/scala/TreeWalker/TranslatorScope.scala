@@ -77,7 +77,7 @@ class TranslatorScope(private val innerScope: Scope) {
 
   def getSymbol(symbolName: String): Symbol = innerScope(symbolName)
 
-  def getAddress(varName: String): Address = {
+  def getAddress(varName: String): StackRelative | Direct = {
     getSymbol(varName).form match
       case _: Symbol.Variable => getStackAddress(varName)
       case _: Symbol.Argument => StackRelative(getStackOffset(varName) + 5)
@@ -92,7 +92,7 @@ class TranslatorScope(private val innerScope: Scope) {
       inner.size + getParent.getStackFrameOffset)
 
 
-  private def getStackAddress(varName: String): Address = StackRelative(getStackOffset(varName))
+  private def getStackAddress(varName: String): StackRelative = StackRelative(getStackOffset(varName))
 
   private def getStackOffset(varName: String): Int = {
     var additionalOffset = pushesToTheStack

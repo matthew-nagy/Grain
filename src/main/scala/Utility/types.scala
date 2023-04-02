@@ -70,11 +70,18 @@ case class Struct(name: String, entries: ListBuffer[Struct.Entry], definedFuncti
       result
     case Some(value) => value
 
+  def getTypeOf(entryName: String): Type =
+    entries.find(_.symbol.name == entryName).get.symbol.dataType
+
   def getOffsetOf(entryName: String): Int =
     entries.find(_.symbol.token.lexeme == entryName) match
       case Some(entry) => entry.offset
       case _ => throw Exception(entryName ++ " not found in class " ++ name)
-  def typeof(name: String): Type = entries.filter(_.symbol.token.lexeme == name).head.symbol.dataType
+  def typeof(entryName: String): Type =
+    (entries.toList.map(_.symbol) ::: definedFunctions.toList).find(_.token.lexeme == entryName) match
+      case Some(symbol) => symbol.dataType
+      case None =>
+        throw new Exception("Class " ++ name ++ " doesn't have a member variable called " ++ entryName)
   
   def contains(name: String): Boolean = entries.exists(_.symbol.token.lexeme == name)
 

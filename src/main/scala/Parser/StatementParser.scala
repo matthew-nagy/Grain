@@ -203,10 +203,11 @@ object StatementParser {
       case Return(None) =>
       case VariableDecl(Expr.Assign(name, initializer)) =>
         ExpressionParser.typeCheck(filename, initializer, scope)
-        if(!Utility.typeEquivilent(scope(name.lexeme).dataType, scope.getTypeOf(initializer))){
+        val assignToken = name.asInstanceOf[Utility.Token]
+        if(!Utility.typeEquivilent(scope(assignToken.lexeme).dataType, scope.getTypeOf(initializer))){
           throw Errors.badlyTyped(
             filename,
-            name.lexeme ++ " of type " ++ scope(name.lexeme).dataType.toString ++ " cannot be innitializeationabled with type " ++ scope.getTypeOf(initializer).toString
+            assignToken.lexeme ++ " of type " ++ scope(assignToken.lexeme).dataType.toString ++ " cannot be innitializeationabled with type " ++ scope.getTypeOf(initializer).toString
           )
         }
       case While(condition, body, _) =>

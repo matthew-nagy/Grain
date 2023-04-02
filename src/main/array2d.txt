@@ -21,7 +21,7 @@ func setupGolBoard(){
     val: word
     for y: word = 0; y < 32; y = y + 1 do{
         for x : word = 0; x < 32; x = x + 1 do{
-            val: word = dead
+            val = dead
             if random() > cellAlivePoint then val = alive
             golState1[y][x] = val
         }
@@ -79,6 +79,8 @@ func main(){
 
     statePtr = golState1
     nextStatePtr = golState2
+
+    while true do {}
 
     delayLama()
     updateCell(0x10, 0x12)

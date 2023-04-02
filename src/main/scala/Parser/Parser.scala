@@ -106,7 +106,6 @@ def returnTypeOrError[T](action: =>T): T | SyntaxError =
     action
   catch
     case se: SyntaxError =>
-      println(se.toString)
       se
     case e@_ => throw e//SyntaxError(-1, "Unknown error type; '" ++ e.toString ++ "'")
 
@@ -175,8 +174,6 @@ object TopLevelParser{
     sendName(funcName)
 
     val arguments = argumentParser(functionScope, tokenBuffer)
-    println("In " ++ funcName.lexeme ++ " with args " ++ arguments.toString)
-    println("The scope is " ++ functionScope.toString)
     val returnType = tokenBuffer.peekType match
       case TokenType.Colon =>
         tokenBuffer.advance()
@@ -276,6 +273,7 @@ object TopLevelParser{
     }
 
     val parsedFunctions = ListBuffer.empty[Stmt.TopLevel]
+    val parsedVariables = ListBuffer.empty[Symbol]
 
     while(tokenBuffer.peekType != TokenType.RightBrace){
       if(tokenBuffer.peekType == TokenType.Func){
@@ -293,9 +291,12 @@ object TopLevelParser{
       else{
         val variableSymbol = StatementParser.parseVariableSymbol(scope, tokenBuffer, false)
         typeSignature.entries.addAll(Utility.Struct.generateEntries(variableSymbol :: Nil))
+        parsedVariables.addOne(variableSymbol)
       }
     }
     tokenBuffer.matchType(TokenType.RightBrace)
+    typeSignature.entries.clear()
+    typeSignature.entries.addAll(Utility.Struct.generateEntries(parsedVariables.toList))
 
     parsedFunctions.toList
   }

@@ -23,13 +23,16 @@ case class Immediate(value: Int) extends Operand with ImmediateOrAddress
 case class ImmediateLabel(label: Label) extends Operand with ImmediateOrAddress
 case class Label(name: String) extends Operand
 sealed trait Address extends Operand with ImmediateOrAddress with AccumulatorOrAddress
-case class Direct(address: Int) extends Address
-case class DirectIndexed(address: Int, by: GeneralPurposeReg) extends Address
-case class DirectIndirect(address: Int) extends Address
-case class DirectIndexedIndirect(address: Int, by: GeneralPurposeReg) extends Address
-case class DirectIndirectIndexed(address: Int, by: GeneralPurposeReg) extends Address
-case class StackRelative(offset: Int) extends Address
-case class StackRelativeIndirectIndexed(offset: Int, by: GeneralPurposeReg) extends Address
+sealed trait Offsetable
+sealed trait SimpleIndirectRemovable
+sealed trait Indexable
+case class Direct(address: Int) extends Address with Offsetable with Indexable
+case class DirectIndexed(address: Int, by: GeneralPurposeReg) extends Address with Offsetable
+case class DirectIndirect(address: Int) extends Address with SimpleIndirectRemovable with Indexable
+case class DirectIndexedIndirect(address: Int, by: GeneralPurposeReg) extends Address with SimpleIndirectRemovable
+case class DirectIndirectIndexed(address: Int, by: GeneralPurposeReg) extends Address with Offsetable
+case class StackRelative(offset: Int) extends Address with Offsetable
+case class StackRelativeIndirectIndexed(offset: Int, by: GeneralPurposeReg) extends Address with Offsetable
 
 def getAddressWithAlteredStack(value: Address, stackChange: Int): Address =
   value match
@@ -74,8 +77,8 @@ package IR:
   case class EOR(op: ImmediateOrAddress) extends Arithmetic
   case class ORA(op: ImmediateOrAddress) extends Arithmetic
 
-  case class ShiftLeft(op: AccumulatorOrAddress) extends Arithmetic
-  case class ShiftRight(op: AccumulatorOrAddress) extends Arithmetic
+  case class ShiftLeft(op: AccumulatorOrAddress, numberOfTimes: Int) extends Arithmetic
+  case class ShiftRight(op: AccumulatorOrAddress, numberOfTimes: Int) extends Arithmetic
   case class RotateLeft(op: AccumulatorOrAddress) extends Arithmetic
   case class RotateRight(op: AccumulatorOrAddress) extends Arithmetic
 
@@ -170,6 +173,10 @@ package IR:
     instruction match
       case UserAssembly(list) => list.length * 3
       case UserData(_, data) => data.length * 6 //Just because I guess thats how I did it with .dw
+      case ShiftLeft(AReg(), times) => times
+      case ShiftRight(AReg(), times) => times
+      case ShiftLeft(_, times) => times * 3
+      case ShiftRight(_, times) => times * 3
       case _: ZeroSizeInstruction => 0
       case _ => 3
 

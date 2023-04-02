@@ -30,7 +30,6 @@ object ExpressionParser {
       case Expr.Get(left, name) => Expr.Get(swapArithmeticBranches(left), name)
       case Expr.GetAddress(expr) => Expr.GetAddress(swapArithmeticBranches(expr))
       case Expr.GetIndex(of, by) => Expr.GetIndex(swapArithmeticBranches(of), swapArithmeticBranches(by))
-      case Expr.Set(left, right) => Expr.Set(swapArithmeticBranches(left), swapArithmeticBranches(right))
       case Expr.SetIndex(of, to) => Expr.SetIndex(swapArithmeticBranches(of), swapArithmeticBranches(to))
       case Expr.Grouping(internalExpr) => Expr.Grouping(swapArithmeticBranches(internalExpr))
       case _ => expr
@@ -60,7 +59,7 @@ object ExpressionParser {
           case _ => isGrouping = false
       }
       return expression match
-        case Expr.Get(_, _) => Expr.Set(expression, right)
+        case get: Expr.Get => Expr.Assign(get, right)
         case Expr.Variable(name) => Expr.Assign(name, right)
         case Expr.GetIndex(_, _) => Expr.SetIndex(expression, right)
         case Expr.Indirection(inner) => Expr.SetIndex(GetIndex(inner, Expr.NumericalLiteral(0)), right)//This is horrible. I love it
@@ -181,6 +180,7 @@ object ExpressionParser {
       indirection = true
       tokenBuffer.advance()
     }
+    var callStartToken = tokenBuffer.peek
     var expr = parsePrimary(scope, tokenBuffer)
     if(indirection){
       expr = Expr.Indirection(expr)
@@ -189,21 +189,35 @@ object ExpressionParser {
 
     while(tokenBuffer.peek.tokenType match{
       case TokenType.LeftParen =>
-        if !expType.isInstanceOf[Utility.FunctionPtr] then throw Errors.CannotCallType(tokenBuffer.getFilename, tokenBuffer.peek.lineNumber, expType)
-        tokenBuffer.advance()
-        expr = finishCall(expr, scope, tokenBuffer)
-        true
+        if(!expType.isInstanceOf[Utility.FunctionPtr]) {
+          if(tokenBuffer.peek.lineNumber != callStartToken.lineNumber){
+            false//It was on a different line so probably the start of the next statement/expression
+          }
+          else {
+            throw Errors.CannotCallType(tokenBuffer.getFilename, tokenBuffer.peek.lineNumber, expType)
+          }
+        }
+        else {
+          callStartToken = tokenBuffer.advance()
+          expr = finishCall(expr, scope, tokenBuffer)
+          true
+        }
       case TokenType.Dot =>
-        tokenBuffer.advance()
+        callStartToken = tokenBuffer.advance()
         val name = tokenBuffer.matchType(TokenType.Identifier)
         expr = Expr.Get(expr, name)
         true
       case TokenType.Asperand =>
-        tokenBuffer.advance()
-        expr = Expr.GetAddress(expr)
-        true
+        if(tokenBuffer.peek.lineNumber != callStartToken.lineNumber){
+          false
+        }
+        else {
+          callStartToken = tokenBuffer.advance()
+          expr = Expr.GetAddress(expr)
+          true
+        }
       case TokenType.LeftSquare =>
-        tokenBuffer.advance()
+        callStartToken = tokenBuffer.advance()
         val indexBy = ExpressionParser.parseOrThrow(scope, tokenBuffer)
         tokenBuffer.matchType(TokenType.RightSquare)
         expr = Expr.GetIndex(expr, indexBy)
@@ -254,6 +268,7 @@ object ExpressionParser {
       case TokenType.StringLiteral => Expr.StringLiteral(token.lexeme)
       case TokenType.LeftParen =>
         val nextExpression = parseExpression(scope, tokenBuffer)
+        tokenBuffer.matchType(TokenType.RightParen)
         nextExpression match
           case nextExpression: SyntaxError => throw nextExpression
           case nextExpression: Expr.Expr => nextExpression
@@ -279,13 +294,22 @@ object ExpressionParser {
     import Expr.*
 
     expr match
-      case Assign(varToken, arg) =>
+      case Assign(target, arg) =>
         typeCheck(filename, arg, scope)
-        if(!Utility.typeEquivilent(scope(varToken.lexeme).dataType, scope.getTypeOf(arg))){
-          throw Errors.badlyTyped(filename,
-            varToken.lexeme ++ " has type " ++ scope(varToken.lexeme).dataType.toString ++ ", rValue has type " ++ scope.getTypeOf(arg).toString
-          )
-        }
+        target match
+          case varToken: Utility.Token =>
+            if(!Utility.typeEquivilent(scope(varToken.lexeme).dataType, scope.getTypeOf(arg))){
+              throw Errors.badlyTyped(filename,
+                varToken.lexeme ++ " has type " ++ scope(varToken.lexeme).dataType.toString ++ ", rValue has type " ++ scope.getTypeOf(arg).toString
+              )
+            }
+          case Get(left, memberToken) =>
+              typeCheck(filename, left, scope)
+              if (!Utility.typeEquivilent(scope.getTypeOf(left).asInstanceOf[Utility.Struct].getTypeOf(memberToken.lexeme), scope.getTypeOf(arg))) {
+                throw Errors.badlyTyped(filename,
+                  memberToken.lexeme ++ " has type " ++ scope(memberToken.lexeme).dataType.toString ++ ", rValue has type " ++ scope.getTypeOf(arg).toString
+                )
+              }
       case BooleanLiteral(_) =>
       case UnaryOp(op, arg) =>
         typeCheck(filename, arg, scope)
@@ -374,15 +398,6 @@ object ExpressionParser {
         }
         if(!ofType.isInstanceOf[Utility.PtrType]){
           throw Errors.cannotIndexNonPoinerElements(filename, of.toString, ofType)
-        }
-      case Set(left, right) =>
-        typeCheck(filename, left, scope)
-        typeCheck(filename, right, scope)
-        if(!Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))){
-          throw Errors.badlyTyped(
-            filename,
-            left.toString ++ " has type " ++ scope.getTypeOf(left).toString ++ ", rValue has type " ++ scope.getTypeOf(right).toString
-          )
         }
       case SetIndex(left, right) =>
         typeCheck(filename, left, scope)

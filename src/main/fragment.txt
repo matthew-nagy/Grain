@@ -1,21 +1,46 @@
 
 class SomeClass{
-    value: word
+    val1: word
+    val2: word
+    reference: SomeClass ptr
     somethingElse: bool
 
     func doAThing(a: word, b: word):word{
-        if @this.somethingElse then a + @this.value
+        if @this.somethingElse then a + @this.val1
         else b
     }
 }
 
 instance:SomeClass
 
+func messWithClass(i: SomeClass ptr): word{
+    return @i.val1 + @i.val2
+}
+
+func delayLama(){
+    for i: word = 0; i < 200; i = i + 1 do asm{"wai"}
+}
+
 func main(){
-    instance.value = 9
-    instance.somethingElse = true
+    asm{
+        "sep #$30"
+        "lda #%10000001     ; Set NMI enable bit and joypad"
+        "sta $4200   ;NMI, V/H Count, and Joypad Enable"
+        "rep #$30"
+    }
+    delayLama()
+    instancePtr: SomeClass ptr = instance@
+    instance.reference = instancePtr
+    instance.val1 = 0x60
+    instance.val2 = 0x09
+    messWithClass(instancePtr)
+    asm{
+        "stoplbl:"
+        "bra stoplbl"
+    }
 }
 
 func VBlank(){
-    instance.doAThing(20, 37)
+    //instance.doAThing(20, 37)
+    //instance.doAThing(instance.value, 37)
 }
