@@ -1,46 +1,31 @@
-
 class SomeClass{
     val1: word
     val2: word
+    boolVal: bool
     reference: SomeClass ptr
-    somethingElse: bool
-
-    func doAThing(a: word, b: word):word{
-        if @this.somethingElse then a + @this.val1
-        else b
-    }
 }
 
-instance:SomeClass
-
-func messWithClass(i: SomeClass ptr): word{
-    return @i.val1 + @i.val2
+func setupInstancePtr(instance: SomeClass ptr){
+    @instance.val2 = 7
+    @instance.reference = instance
 }
 
-func delayLama(){
-    for i: word = 0; i < 200; i = i + 1 do asm{"wai"}
+globalArray: word[8]
+func checkGlobalArray(){
+    index: word = 7
+    globalArray[5] = 2
+    globalArray[index] = 3
+    globalArray[globalArray[1]] = 4
+    globalArray[globalArray[1] + 2] = 4
+    globalArray[globalArray[1] + index] = 4
 }
 
-func main(){
-    asm{
-        "sep #$30"
-        "lda #%10000001     ; Set NMI enable bit and joypad"
-        "sta $4200   ;NMI, V/H Count, and Joypad Enable"
-        "rep #$30"
-    }
-    delayLama()
-    instancePtr: SomeClass ptr = instance@
-    instance.reference = instancePtr
-    instance.val1 = 0x60
-    instance.val2 = 0x09
-    messWithClass(instancePtr)
-    asm{
-        "stoplbl:"
-        "bra stoplbl"
-    }
-}
-
-func VBlank(){
-    //instance.doAThing(20, 37)
-    //instance.doAThing(instance.value, 37)
+func checkLocalArray(){
+    localArray: word[8]
+    index: word = 7
+    localArray[5] = 2
+    localArray[index] = 3
+    localArray[localArray[1]] = 4
+    localArray[localArray[1] + 2] = 4
+    localArray[localArray[1] + index] = 4
 }

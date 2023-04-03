@@ -27,6 +27,8 @@ object Optimise {
   //    You don't need to mess with A there
   //  Finds pushing then immediately pulling a register
   //    Either don't do anything, or transfer
+  //  Finds pushing something to the stack only to add it to a constant
+  //    Changes from adc 1, s to just adding the constant, saving stack manipulation
   @tailrec
   def stackUsage(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
     val next: Result = instructions match
@@ -56,6 +58,8 @@ object Optimise {
           case XReg() => Result(IR.TransferXTo(reg2) :: Nil, remaining)
           case YReg() => Result(IR.TransferYTo(reg2) :: Nil, remaining)
           case _ => Result(instructions.head :: Nil, instructions.tail)
+      case IR.PushRegister(AReg()) :: IR.Load(imOrAd, AReg()) :: IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(_) :: remaining =>
+        Result(IR.ClearCarry() :: IR.AddCarry(imOrAd) :: Nil, remaining)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
     Optimise.stackUsage(next.remaining, alreadyOptimised ::: next.optimisedFragment)

@@ -199,7 +199,7 @@ object Getting{
       case DirectIndirectIndexed(value, by) => (DirectIndirectIndexed(value, by), IRBuffer()
         .append(IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: IR.TransferAccumulatorTo(by) :: Nil)
       )
-      case StackRelative(value) => (StackRelative(value + offset), IRBuffer())
+      case StackRelative(value) => (StackRelative(value - offset), IRBuffer())
       case StackRelativeIndirectIndexed(value, by) => (StackRelativeIndirectIndexed(value, by), IRBuffer()
         .append(IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: IR.TransferToAccumulator(by) :: Nil)
       )
@@ -230,15 +230,49 @@ object Getting{
       case DirectIndexed(offset, by) => IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: Nil
       case DirectIndirect(value) => IR.Load(Direct(value), AReg()) :: Nil
       case DirectIndexedIndirect(offset, by) => IR.Load(DirectIndexed(offset, by), AReg()) :: Nil
-      case DirectIndirectIndexed(offset, by) => IR.PushRegister(by) :: IR.Load(DirectIndirect(offset), AReg()) ::
+      case DirectIndirectIndexed(offset, by) => IR.PushRegister(by) :: IR.Load(Direct(offset), AReg()) ::
         IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil
-      case StackRelative(offset) => IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: Nil
+      case StackRelative(offset) => IR.TransferToAccumulator(StackPointerReg()) :: IR.SetCarry() :: IR.SubtractCarry(Immediate(offset)) :: Nil
       case StackRelativeIndirectIndexed(stackOffset, by) => IR.PushRegister(by) :: IR.Load(StackRelative(stackOffset + 2), AReg()) :: IR.ClearCarry() ::
         IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil
   }
 
+  //There seems to be indirects where there shouldn't be occasionally
+  //ie, at 100 there is an arrayptr
+  //and (100) is loaded. It should just be 100, as you load the ptr
   def getIndexOfPtr(ptrExpr: Expr.Expr, index: Expr.Expr, scope: TranslatorScope): (Address, IRBuffer) = {
-    (Direct(-1), IRBuffer().append(IR.NOP().addComment("in Ptr")))
+    val (addressOfPtr, codeToGetAddressOfPtr) = getAddressOf(ptrExpr, scope)
+    val innerSizeOfArray = getInternalSizeOfArray(ptrExpr, scope.inner)
+    def getIndexToX():IRBuffer =
+      index match
+        case NumericalLiteral(value) =>
+          IRBuffer().append(IR.Load(Immediate(value * innerSizeOfArray), XReg()))
+        case _ =>
+          ExpressionTranslator.getFromAccumulator(index, scope).toGetThere
+            .append(correctAccumulatorIndexByType(ptrExpr, scope.inner))
+            .append(IR.TransferToX(AReg()))
+    addressOfPtr match
+      case Direct(location) =>
+        val toAccumulatorToX = getIndexToX()
+        (DirectIndirectIndexed(location, XReg()), codeToGetAddressOfPtr.append(toAccumulatorToX))
+      case StackRelative(offset) =>
+        val toAccumulatorToX = getIndexToX()
+        (StackRelativeIndirectIndexed(offset, XReg()), codeToGetAddressOfPtr.append(toAccumulatorToX))
+      case _ =>
+        val ptrToAccumulator = IR.Load(addressOfPtr, AReg())
+        index match
+          case NumericalLiteral(value) =>
+            (DirectIndexed(value * innerSizeOfArray, XReg()), codeToGetAddressOfPtr.append(ptrToAccumulator :: IR.TransferToX(AReg()) :: Nil))
+          case _ =>
+            val pushPtr = IR.PushRegister(AReg())
+            scope.push()
+            val indexToAccumulatorAndAdjusted = ExpressionTranslator.getFromAccumulator(index, scope).toGetThere.append(correctAccumulatorIndexByType(ptrExpr, scope.inner))
+            val additionPopAndToX = IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: IR.TransferToX(AReg()) :: Nil
+            (DirectIndexed(0, XReg()), codeToGetAddressOfPtr
+              .append(pushPtr)
+              .append(indexToAccumulatorAndAdjusted)
+              .append(additionPopAndToX)
+            )
   }
 
   def getIndexOfArray(arrayExpr: Expr.Expr, index: Expr.Expr, scope: TranslatorScope):(Address, IRBuffer) = {
@@ -398,15 +432,21 @@ object ExpressionTranslator {
               AccumulatorLocation(intoAccumulator.toGetThere.append(IR.Store(address, AReg()).addComment("Assigning simple getter")))
             }
             else{
-              scope.rememberStackLocation()
               val intoStack = getFromStack(arg, scope)
               val (addressWithStackCorrection, toGetAddressWithStackCorrection) = Getting.getAddressOf(getter, scope) //get again with the stack sorted
-              AccumulatorLocation(
-                intoStack.toGetThere
-                  .append(toGetAddressWithStackCorrection)
-                  .append(IR.PopRegister(AReg()) :: IR.Store(addressWithStackCorrection, AReg()) :: Nil)
-                  .append(scope.getFixStackDecay())
-              )
+              intoStack.address match
+                case StackRelative(2) =>
+                  AccumulatorLocation(
+                    intoStack.toGetThere
+                      .append(toGetAddressWithStackCorrection)
+                      .append(IR.PopRegister(AReg()) :: IR.Store(addressWithStackCorrection, AReg()) :: Nil)
+                  )
+                case _ =>
+                  AccumulatorLocation(
+                    intoStack.toGetThere
+                      .append(toGetAddressWithStackCorrection)
+                      .append(IR.Load(intoStack.address, AReg()) :: IR.Store(addressWithStackCorrection, AReg()) :: Nil)
+                  )
             }
       case BooleanLiteral(value) => AccumulatorLocation(
         loadImmediate(AReg(), if(value) 1 else 0)
@@ -476,7 +516,6 @@ object ExpressionTranslator {
                 IR.Load(address, AReg()) :: IR.TransferToX(AReg()) :: IR.Load(DirectIndexed(0, XReg()), AReg()) :: Nil
               ))
       case SetIndex(of, to) =>
-        scope.rememberStackLocation()
         val getWhatToSet = getFromAccumulator(to, scope).toGetThere
         getWhatToSet.toList match
           case IR.Load(x, AReg()) :: Nil if !(
@@ -544,6 +583,7 @@ object ExpressionTranslator {
       case UnaryOp(_, _) => stackFromAccumulator(expr, scope)
       case BinaryOp(_, _, _) => stackFromAccumulator(expr, scope)
       case NumericalLiteral(_) => stackFromAccumulator(expr, scope)
+      case BooleanLiteral(_) => stackFromAccumulator(expr, scope)
       case Indirection(_) => stackFromAccumulator(expr, scope)//May be improvable later
       case Variable(name) =>
         scope.getSymbol(name.lexeme).dataType match
@@ -558,6 +598,7 @@ object ExpressionTranslator {
       case FunctionCall(_, _) => stackFromAccumulator(expr, scope)
       case GetAddress(_) => stackFromAccumulator(expr, scope)
       case GetIndex(_, _) => stackFromAccumulator(expr, scope)
+      case SetIndex(_, _) => stackFromAccumulator(expr, scope)
       case Grouping(internalExpr) => getFromStack(internalExpr, scope)
       case Get(_, _) => stackFromAccumulator(expr, scope)
       case _ => throw new Exception("Not handled in stack yet (" ++ expr.toString ++ ")")

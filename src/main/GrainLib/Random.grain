@@ -11,6 +11,7 @@ func seedWithInput() asm{
     "eor $4219"
     "ora $A"
     "sta $A"
+    "rtl"
 }
 
 func lastRandom():word asm{
