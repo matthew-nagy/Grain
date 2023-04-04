@@ -79,8 +79,13 @@ package Expr:
 
   import Utility.Word
 
-  sealed trait Expr
+  sealed trait Expr{
+    private var alteredTypeInformation : Option[Utility.Type] = None
+    def castType: Option[Utility.Type] = alteredTypeInformation
+    def castToType(newType: Utility.Type): Unit = alteredTypeInformation = Some(newType)
+  }
   case class Assign(name: Token | Get, arg: Expr) extends Expr
+  case class BankLiteral(intermediateValue: Int) extends Expr
   case class BooleanLiteral(value: Boolean) extends Expr
   case class UnaryOp(op: Operation.Unary, arg: Expr) extends Expr
 
@@ -101,7 +106,8 @@ package Expr:
 
   def OptimiseExpression(expr: Expr): Expr =
     expr match
-      case Assign(n, e) => Assign(n, OptimiseExpression(e))
+      case Assign(n, e) if n.isInstanceOf[Token] => Assign(n, OptimiseExpression(e))
+      case Assign(getter, e) if getter.isInstanceOf[Get] => Assign(OptimiseExpression(getter.asInstanceOf[Get]).asInstanceOf[Get], OptimiseExpression(e))
       case u @ UnaryOp(_, _) => OptimiseUnaryExpression(u)
       case b @ BinaryOp(_, _, _) => OptimiseBinaryExpression(b)
       case FunctionCall(name, args) =>
@@ -155,3 +161,19 @@ package Expr:
       case UnaryOp(UOp.BitwiseNot, UnaryOp(UOp.BitwiseNot, e)) => e
       case UnaryOp(op, NumericalLiteral(num)) => NumericalLiteral(Operation.applyOperation(op, num))
       case _ => treeOptimisedExpr
+
+//  def ExecutePreprocessExpressions(expr: Expr, scope: Scope): Expr = {
+//    def rcurs(rExpr: Expr) = ExecutePreprocessExpressions(rExpr, scope)
+//    expr match
+//      case Assign(t, arg) if t.isInstanceOf[Token] => Assign(t, rcurs(arg))
+//      case Assign(Get(left, token), arg) => Assign(Get(rcurs(left), token), rcurs(arg))
+//      case UnaryOp(op, arg) => UnaryOp(op, rcurs(arg))
+//      case BinaryOp(op, left, right) => BinaryOp(op, rcurs(left), rcurs(right))
+//      case Indirection(expr) => Indirection(rcurs(expr))
+//      case FunctionCall(function, arguments) => FunctionCall(rcurs(function), arguments.map(rcurs))
+//      case Get(left, name) => Get(rcurs(left), name)
+//      case GetAddress(inner) => GetAddress(rcurs(inner))
+//      case GetIndex(of, by) => GetIndex(rcurs(of), rcurs(by))
+//      case SetIndex(of, to) => SetIndex(rcurs(of), rcurs(to))
+//      case Grouping(internalExpr) => rcurs(internalExpr)
+//  }

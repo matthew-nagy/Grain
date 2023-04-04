@@ -59,7 +59,13 @@ object StatementTranslator {
   private def translateStatement(stmt: Statement, scope: TranslatorScope): IRBuffer = {
     IRBuffer().append(
     stmt match
-      case Assembly(assembly) => IR.UserAssembly(assembly) :: Nil
+      case Assembly(assembly) =>
+        assembly.foreach(
+          s => if(s.split(' ').contains("jsl")){
+            scope.getTranslatorSymbolTable.usedFunctionLabels.addOne(s.split(' ')(1))
+          }
+        )
+        IR.UserAssembly(assembly) :: Nil
       case Block(statements) =>
         val blockScope = scope.getChild(stmt)
         blockScope.extendStack() :::
@@ -154,29 +160,4 @@ object StatementTranslator {
 
   def apply(stmt: Statement, scope:TranslatorScope): IRBuffer = translateStatement(stmt, scope.getChild(stmt))
 
-  def main(args: Array[String]): Unit = {
-    val filename = "src/main/StatementParserTest.txt"
-    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename)
-    val symbolTable = new SymbolTable
-    val funcScope = symbolTable.globalScope.newFunctionChild()
-    funcScope.setReturnType(Utility.Word())
-
-    val statements = ListBuffer.empty[Stmt.Statement]
-
-    while (tokenBuffer.peekType != TokenType.EndOfFile) {
-      val stmt = Parser.StatementParser.parseOrThrow(funcScope, tokenBuffer)
-      println(stmt)
-      statements.append(stmt)
-    }
-
-    val ir = statements
-      .map(translateStatement(_, TranslatorScope(funcScope)))
-      .foldLeft(IRBuffer())(_.append(_))
-
-    println(ir)
-
-    val assembly = ir.toList.map(Translator(_)).foldLeft("")(_ ++ "\n" ++ _)
-
-    println(assembly)
-  }
 }

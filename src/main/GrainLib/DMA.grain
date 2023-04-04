@@ -3,3 +3,62 @@ func setVramTarget(targetLocation: word) asm{
     "sta $2116"
     "rtl"
 }
+
+//channel 0 is VRam
+//channel 1 is CGRam
+//channel 2 is OAM
+//Does it matter what channel is what lmao
+//there is no documentation on what happens for a double write
+//jesus the SNES is shit
+func dmaToVRam(sourceAddress: tile_data ptr, sourceBank: data_bank, transferSize: word) asm{
+    //For now assume channel 0 is for VRAM
+
+    "lda 4"
+    "ora #%00000001"
+    "sta 4"
+    "lda 4, s" //Transfer size
+    "sta $4305"
+    "lda 8, s"//Source address
+    "sta $4302"
+    "sep #$20"
+
+    "lda 6, s"//data bank
+    "sta $4304"
+    "lda #$18"//Write address (VRAM gate)
+    "sta $4301"
+    "lda #1"//How to write; 1 word
+    "sta $4300"
+
+    "rep #$20"
+    "rtl"
+}
+
+func dmaToCGRam(sourceAddress: palette_data ptr, sourceBank: data_bank, transferSize: word) asm{
+    //For now assume channel 1 is for VRAM
+    "lda 4"
+    "ora #%00000010"
+    "sta 4"
+    "lda 4, s" //Transfer size
+    "sta $4315"
+    "lda 8, s"//Source address
+    "sta $4312"
+    "sep #$20"
+
+    "lda 6, s"//data bank
+    "sta $4314"
+    "lda #$22"//Write address (VRAM gate)
+    "sta $4311"
+    "lda #0"//How to write; 1 byte
+    "sta $4310"
+
+    "rep #$20"
+    "rtl"
+}
+
+func executeDMA()asm{
+    "sep #$20"
+    "lda 4"
+    "stz 4"
+    "sta $420B"
+    "rtl"
+}

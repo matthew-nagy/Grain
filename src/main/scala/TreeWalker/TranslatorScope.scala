@@ -1,17 +1,23 @@
 package TreeWalker
 
-import scala.collection.mutable.Stack
+import scala.collection.mutable
 import Grain.*
 
 import scala.annotation.tailrec
-class TranslatorScope(private val innerScope: Scope) {
+
+class TranslatorSymbolTable{
+  val usedFunctionLabels: mutable.Set[String] = mutable.Set.empty[String]
+  val functionLabelPtrs: mutable.Set[String] = mutable.Set.empty[String]
+}
+
+class TranslatorScope(private val innerScope: Scope, private val translatorSymbolTable: TranslatorSymbolTable) {
   private var pushesToTheStack = 0
-  private val stackFrames = Stack.empty[Int]
+  private val stackFrames = mutable.Stack.empty[Int]
   //In 2s because 16 bit. If bytes come later, byte versions will need to be added
   def push(): Unit = pushesToTheStack += 2
   def pop(): Unit = pushesToTheStack -= 2
 
-  //private def getPushesToTheStack() =
+  def getTranslatorSymbolTable: TranslatorSymbolTable = translatorSymbolTable
 
   def size: Int = innerScope.size
   def inner: Scope = innerScope
@@ -67,22 +73,23 @@ class TranslatorScope(private val innerScope: Scope) {
   }
 
   private def getParent: TranslatorScope =
-    TranslatorScope(innerScope.parent)
+    TranslatorScope(innerScope.parent, translatorSymbolTable)
 
   def getChild(statement: Stmt.Statement): TranslatorScope = {
-    val child = TranslatorScope(innerScope.getChildOrThis(statement))
+    val child = TranslatorScope(innerScope.getChildOrThis(statement), translatorSymbolTable)
     child.pushesToTheStack = pushesToTheStack
     child
   }
 
   def getSymbol(symbolName: String): Symbol = innerScope(symbolName)
 
-  def getAddress(varName: String): StackRelative | Direct = {
+  def getAddress(varName: String): StackRelative | Direct | DirectLabel= {
     getSymbol(varName).form match
       case _: Symbol.Variable => getStackAddress(varName)
       case _: Symbol.Argument => StackRelative(getStackOffset(varName) + 5)
       case _: Symbol.FunctionDefinition => throw new Exception("Can't get the location of a function (I guess?)")
       case glob: Symbol.GlobalVariable => Direct(glob.location)
+      case _: Symbol.Data => DirectLabel(varName)
   }
 
   def getStackFrameOffset: Int =

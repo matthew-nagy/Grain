@@ -25,23 +25,28 @@ object Translator {
       case StackRelativeIndirectIndexed(offset, by) => "(" ++ (offset - 1).toString ++ ", s), " ++ getReg(by)
       case null => throw new Exception("Cannot find this address type")
 
-  private def getImAd(imOrAd: ImmediateOrAddress): String =
+  private def getBankImmediate(dataImmediate: BankImmediate, dataBankStart: Int): String =
+    "#" ++ (dataImmediate.value + dataBankStart).toString
+
+  private def getImAd(imOrAd: ImmediateOrAddress, dataBankStart: Int): String =
     imOrAd match
       case immediate: Immediate => getImmediate(immediate)
       case address: Address => getAddress(address)
+      case dataImmediate: BankImmediate => getBankImmediate(dataImmediate, dataBankStart)
+      case label: Label => "#" ++ label.name
 
   private def getAcAd(acOrAd: AccumulatorOrAddress): String =
     acOrAd match
       case _: AReg => "A"
       case address: Address => getAddress(address)
 
-  private def smpl(name: String, op: ImmediateOrAddress): String = $(name :: getImAd(op) :: Nil)
+  private def smpl(name: String, op: ImmediateOrAddress, dataBankStart: Int): String = $(name :: getImAd(op, dataBankStart) :: Nil)
   private def smpl(name: String, op: AccumulatorOrAddress): String = $(name :: getAcAd(op) :: Nil)
   private def smpl(name: String, address: Address): String = $(name :: getAddress(address) :: Nil)
   private def smpl(name: String, immediate: Immediate): String = $(name :: getImmediate(immediate) :: Nil)
   private def smpl(name: String, label: Label): String = $(name :: label.name :: Nil)
 
-  private def arithmetic(a: Arithmetic): String = {
+  private def arithmetic(a: Arithmetic, dataBankStart: Int): String = {
     def incDec(changeType: "in" | "de", reg: TargetReg): String = reg match
       case AReg() => changeType ++ "c A"
       case XReg() => changeType ++ "x"
@@ -54,18 +59,18 @@ object Translator {
         sequence.tail.foldLeft(sequence.head)(_ ++ "\n" ++ _)
       }
     a match
-      case AddCarry(op) => smpl("adc", op)
-      case SubtractCarry(op) => smpl("sbc", op)
-      case AND(op) => smpl("and", op)
-      case EOR(op) => smpl("eor", op)
-      case ORA(op) => smpl("ora", op)
+      case AddCarry(op) => smpl("adc", op, dataBankStart)
+      case SubtractCarry(op) => smpl("sbc", op, dataBankStart)
+      case AND(op) => smpl("and", op, dataBankStart)
+      case EOR(op) => smpl("eor", op, dataBankStart)
+      case ORA(op) => smpl("ora", op, dataBankStart)
       case ShiftLeft(op, times) =>
         unrollSequence(for i <- Range(0, times) yield smpl("asl", op))
       case ShiftRight(op, times) =>
         unrollSequence(for i <- Range(0, times) yield smpl("lsr", op))
       case RotateLeft(op) => smpl("rol", op)
       case RotateRight(op) => smpl("ror", op)
-      case BitTest(op) => smpl("bit", op)
+      case BitTest(op) => smpl("bit", op, dataBankStart)
       case DecrementReg(reg) => incDec("de", reg)
       case IncrementReg(reg) => incDec("in", reg)
       case DecrementMemory(address) => $("dec" :: getAddress(address) :: Nil)
@@ -73,10 +78,10 @@ object Translator {
       case NOP() => "nop ; :)"
       case ExchangeAccumulatorBytes() => "xba"
   }
-  private def loadStore(ls: LoadStore): String = {
+  private def loadStore(ls: LoadStore, dataBankStart: Int): String = {
     def ldOrSt(start: "ld" | "st", reg: TargetReg): String = start ++ getReg(reg)
     ls match
-      case Load(op, reg) => smpl(ldOrSt("ld", reg), op)
+      case Load(op, reg) => smpl(ldOrSt("ld", reg), op, dataBankStart)
       case Store(address, reg) => smpl(ldOrSt("st", reg), address)
       case SetZero(address) => smpl("stz", address)
   }
@@ -96,14 +101,14 @@ object Translator {
       case TransferToY(reg) => transfers(reg)(YReg())
       case TransferYTo(reg) => transfers(YReg())(reg)
   }
-  private def branch(b: Branch): String = {
+  private def branch(b: Branch, dataBankStart: Int): String = {
     b match
       case Compare(op, reg) =>
         val name = reg match
           case AReg() => "cmp"
           case XReg() => "cmx"
           case YReg() => "cmy"
-        smpl(name, op)
+        smpl(name, op, dataBankStart)
       case BranchIfNoCarry(label) => smpl("bcc", label)
       case BranchIfCarrySet(label) => smpl("bcs", label)
       case BranchIfNotEqual(label) => smpl("bne", label)
@@ -177,12 +182,12 @@ object Translator {
       case UserData(dataName, data) => dataName ++ data.foldLeft(":")(_ ++ "\n\t" ++ _)
   }
 
-  private def translatedIR(instruction: IR.Instruction): String =
+  private def translatedIR(instruction: IR.Instruction, dataBankStart: Int): String =
     instruction match
-      case a: Arithmetic => arithmetic(a)
-      case ls: LoadStore => loadStore(ls)
+      case a: Arithmetic => arithmetic(a, dataBankStart)
+      case ls: LoadStore => loadStore(ls, dataBankStart)
       case t: Transfer => transfer(t)
-      case b: Branch => branch(b)
+      case b: Branch => branch(b, dataBankStart)
       case jc: JumpCall => jumpCall(jc)
       case i: Interrupts => interrupts(i)
       case pc: ProcessorFlags => processorFlags(pc)
@@ -195,6 +200,6 @@ object Translator {
       case None => ""
       case Some(comment) => "\t;" ++ comment
 
-  def apply(instruction: IR.Instruction): String =
-    translatedIR(instruction) ++ translatedComment(instruction)
+  def apply(instruction: IR.Instruction, dataBankStart: Int): String =
+    translatedIR(instruction, dataBankStart) ++ translatedComment(instruction)
 }

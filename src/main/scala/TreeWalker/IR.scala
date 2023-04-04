@@ -20,13 +20,14 @@ case class StackPointerReg() extends TargetOrStackReg
 
 sealed trait Operand
 case class Immediate(value: Int) extends Operand with ImmediateOrAddress
-case class ImmediateLabel(label: Label) extends Operand with ImmediateOrAddress
-case class Label(name: String) extends Operand
+case class BankImmediate(value: Int) extends Operand with ImmediateOrAddress
+case class Label(name: String) extends Operand with ImmediateOrAddress
 sealed trait Address extends Operand with ImmediateOrAddress with AccumulatorOrAddress
 sealed trait Offsetable
 sealed trait SimpleIndirectRemovable
 sealed trait Indexable
 case class Direct(address: Int) extends Address with Offsetable with Indexable
+case class DirectLabel(label: String) extends Address with Offsetable with Indexable
 case class DirectIndexed(address: Int, by: GeneralPurposeReg) extends Address with Offsetable
 case class DirectIndirect(address: Int) extends Address with SimpleIndirectRemovable with Indexable
 case class DirectIndexedIndirect(address: Int, by: GeneralPurposeReg) extends Address with SimpleIndirectRemovable

@@ -15,16 +15,21 @@ frameCount: word = 0
 cellAlivePoint: word = 0xB000
 
 include "src/main/GrainLib/Random.grain"
-include "src/main/GrainLib/stdlib.grain"
+include "src/main/GrainLib/Hardware.grain"
 
 func setupGolBoard(){
     val: word
-    for y: word = 0; y < 32; y = y + 1 do{
-        for x : word = 0; x < 32; x = x + 1 do{
-            val = dead
-            if random() > cellAlivePoint then val = alive
-            golState1[y][x] = val
-        }
+    //for y: word = 0; y < 32; y = y + 1 do{
+    //    for x : word = 0; x < 32; x = x + 1 do{
+    //        val = dead
+    //        if random() > cellAlivePoint then val = alive
+    //        golState1[y][x] = val
+    //    }
+    //}
+    for index: word = 0; index < 1024; index = index + 1 do{
+        val = dead
+        if random() > cellAlivePoint then val = alive
+        (golState1 as word[1024])[index] = val
     }
 }
 
@@ -83,19 +88,18 @@ func main(){
     updateCell(0x10, 0x12)
 
     while true do {
-        //if frameCount > 70 then{
-            frameCount = 0
-            stepGameOfLife()
-            tempStatePtr = statePtr
-            statePtr = nextStatePtr
-            nextStatePtr = tempStatePtr
-        //}
+        stepGameOfLife()
+        tempStatePtr = statePtr
+        statePtr = nextStatePtr
+        nextStatePtr = tempStatePtr
+        //setMosaicEffect(frameCount, 1)
         frame()
     }
 }
 
 func VBlank(){
     frameCount = frameCount + 1
+    if frameCount > 14 then frameCount = 0
     if setup then{
         asm{
             "sep #$20"

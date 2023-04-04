@@ -107,7 +107,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
     (for symbol <- symbolMap yield symbol.toString ++ "\n").toList.toString()
   }
 
-  def getTypeOf(expr: Expr.Expr): Type =
+  def getUncastTypeOf(expr: Expr.Expr): Type =
     expr match
       case Expr.Assign(target, _) =>
         target match
@@ -116,6 +116,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
           case getter: Expr.Get =>
             getTypeOf(getter)
       case Expr.BooleanLiteral(_) => Utility.BooleanType()
+      case Expr.BankLiteral(_) => Utility.DataBankIndex()
       case Expr.UnaryOp(_, e) => getTypeOf(e) //Could emit warning if trying to do a weird thing with types here
       case Expr.BinaryOp(op, left, _) =>
         op match
@@ -147,6 +148,13 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
         Utility.Ptr(getTypeOf(e))
       case Expr.Grouping(internalExpr) => getTypeOf(internalExpr)
       case null => throw new Exception("Matching should be exhaustive")
+  def getTypeOf(expr: Expr.Expr): Type =
+    if(expr.castType.isDefined){
+      expr.castType.get
+    }
+    else{
+      getUncastTypeOf(expr)
+    }
 }
 
 class FunctionScope(parentScope: Option[Scope], symbolTable: SymbolTable) extends Scope(parentScope, symbolTable){
@@ -196,7 +204,11 @@ class SymbolTable{
   val globalScope = GlobalScope(this)
   val types: Map[String, Type] = Map(
     "word" -> Word(),
-    "bool" -> Utility.BooleanType()
+    "bool" -> Utility.BooleanType(),
+    "bit_depth" -> Utility.BitdepthType(),
+    "data_bank" -> Utility.DataBankIndex(),
+    "tile_data" -> Utility.SpriteType(),
+    "palette_data" -> Utility.Palette()
   )
 }
 

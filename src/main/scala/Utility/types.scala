@@ -17,9 +17,11 @@ sealed trait SpecialType extends Type
 
 
 //If in the future multi sized tiles are supported nativly, here is where to put it
-case class SpriteSheet(bitdepth: Bitdepth) extends SpecialType
+case class Sprite(bitdepth: Bitdepth) extends SpecialType
+case class SpriteType() extends SpecialType
 case class Palette() extends SpecialType
 case class BitdepthType() extends SpecialType
+case class DataBankIndex() extends SpecialType
 
 
 case class Empty() extends Type
@@ -99,6 +101,9 @@ def getTypeSize(dataType: Type):Int = {
       getTypeSize(of) * length
     case FunctionPtr(_, _) => 2
     case s @ Struct(_, _, _) => s.size
+    case DataBankIndex() => 2
+    case Palette() => 256
+    case Sprite(bpp) => 8 * 8 * bpp / 8
 }
 
 def stripPtrType(t: Type):Type = {
@@ -110,6 +115,9 @@ def stripPtrType(t: Type):Type = {
 
 def typeEquivilent(t1: Type, t2: Type): Boolean = {
   if(t1 == t2){
+    true
+  }
+  else if((t1.isInstanceOf[SpriteType] && t2.isInstanceOf[Sprite]) || (t1.isInstanceOf[Sprite] && t2.isInstanceOf[SpriteType])){
     true
   }
   else{
@@ -127,3 +135,6 @@ def typeToRecursionSafeString(t: Type): String=
   t match
     case Struct(name, _, _) => name
     case _ => t.toString
+
+//TODO if you want to test validity
+def isCastValid(oldType: Type, newType: Type): Boolean = true

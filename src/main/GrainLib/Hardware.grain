@@ -1,0 +1,51 @@
+func enableInputAndNMI()asm{
+    "sep #$20"
+    "lda %10000001"
+    "sta $4200"
+    "rep #$20"
+    "rtl"
+}
+
+func setMosaicEffect(effectSize: word, effectedBackgroundBitmask: word) asm{
+    "sep #$20"
+
+    "lda 6, s"
+    "asl"
+    "asl"
+    "asl"
+    "asl"
+    "ora 4, s"
+    "sta $2106"
+
+    "rep #$20"
+    "rtl"
+}
+
+func setScreenDisabledAndBrightness(screenDisabled: bool, brightness: word)asm{
+    "lda 6, s"
+    "xba"
+    "lsr"
+    "sep #$20"
+    "ora 4, s"
+    "sta $2100"
+    "rep #$20"
+    "rtl"
+}
+
+func getPlayerInput(playerNumber: word): word asm{
+    "lda 4, s"
+    "asl"
+    "tax"
+    "func_getPlayerInput_waitForUserInput:"
+    "lda $4212"
+    "and #1"
+    "bne func_getPlayerInput_waitForUserInput"
+    "lda $4216, x"
+    "rtl"
+}
+
+func frame() asm{
+    "inc 6"
+    "wai"
+    "rtl"
+}

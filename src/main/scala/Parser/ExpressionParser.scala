@@ -70,6 +70,7 @@ object ExpressionParser {
 
     expr
   }
+
   private def parseLogical(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
     var expr = parseEquality(scope, tokenBuffer)
 
@@ -162,8 +163,21 @@ object ExpressionParser {
       val right = parseUnary(scope, tokenBuffer)
       Expr.UnaryOp(op, right)
     }
-    parseCall(scope, tokenBuffer)
+    parseTypeAlteration(scope, tokenBuffer)
   }
+
+  private def parseTypeAlteration(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
+    val expr = parseCall(scope, tokenBuffer)
+
+    if (tokenBuffer.peekType == TokenType.As) {
+      tokenBuffer.advance()
+      expr.castToType(parseType(scope.symbolTable, tokenBuffer))
+    }
+
+    expr
+  }
+
+
   private def finishCall(function: Expr.Expr, scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
     var arguments = List.empty[Expr.Expr]
     while(tokenBuffer.peekType != TokenType.RightParen){
@@ -260,6 +274,14 @@ object ExpressionParser {
   }
 
   private def parsePrimary(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
+    def getInnerExpr: Expr.Expr = {
+      tokenBuffer.matchType(TokenType.LeftParen)
+      val innerExpr = parseExpression(scope, tokenBuffer) match
+        case newExpression: Expr.Expr => newExpression
+        case error: SyntaxError => throw error
+      tokenBuffer.matchType(TokenType.RightParen)
+      innerExpr
+    }
     val token = tokenBuffer.advance()
     token.tokenType match
       case TokenType.False => Expr.BooleanLiteral(false)
@@ -279,6 +301,42 @@ object ExpressionParser {
         Expr.Variable(token)
       case TokenType.Asperand =>
         Expr.Indirection(parsePrimary(scope, tokenBuffer))
+
+      case TokenType.SizeOf =>
+        if(scope.symbolTable.types.contains(tokenBuffer.lookAhead(1).lexeme)){
+          tokenBuffer.matchType(TokenType.LeftParen)
+          val result = Expr.NumericalLiteral(Utility.getTypeSize(parseType(scope.symbolTable, tokenBuffer)))
+          tokenBuffer.matchType(TokenType.RightParen)
+          result
+        }
+        else {
+          val innerExpr = getInnerExpr
+          Expr.NumericalLiteral(Utility.getTypeSize(scope.getTypeOf(innerExpr)))
+        }
+      case TokenType.LengthOf =>
+        val innerExpr = getInnerExpr
+        scope.getTypeOf(innerExpr) match
+          case Utility.Array(_, length) => Expr.NumericalLiteral(length)
+          case badType @ _ => throw Errors.CannotGetLengthOfNonArrayType(tokenBuffer.getFilename, innerExpr, badType, token.lineNumber)
+      case TokenType.BitPerPixelOf =>
+        val innerExpr = getInnerExpr
+        innerExpr match
+          case Variable(name) =>
+            scope(name.lexeme).dataType match
+              case Utility.Array(Utility.Sprite(bpp), _) => Expr.NumericalLiteral(bpp)
+              case Utility.Sprite(bpp) => Expr.NumericalLiteral(bpp)
+              case _ => throw Errors.CannotGetBitDepthOfNonSprite(tokenBuffer.getFilename, innerExpr, scope(name.lexeme).dataType, token.lineNumber)
+          case _ =>
+            throw Errors.CannotGetBitDepthOfNonVariable(tokenBuffer.getFilename, innerExpr, token.lineNumber)
+      case TokenType.BankOf =>
+        val innerExpr = getInnerExpr
+        innerExpr match
+          case Variable(name) =>
+            val bankedSymbol = scope(name.lexeme)
+            bankedSymbol.form match
+              case Symbol.Data(_, _, dataBank) => Expr.BankLiteral(dataBank)
+              case _ => throw Errors.CannotGetBankOfNonData(tokenBuffer.getFilename, innerExpr, bankedSymbol.dataType, token.lineNumber)
+          case _ => throw Errors.CannotGetBankOfNonVariable(tokenBuffer.getFilename, innerExpr, token.lineNumber)
       case _ =>
         throw Errors.ExpectedExpression(tokenBuffer.getFilename, token)
   }
@@ -292,6 +350,11 @@ object ExpressionParser {
       case null => throw Exception("Invalid case")
   def typeCheck(filename: String, expr: Expr.Expr, scope: Scope): Unit = {
     import Expr.*
+
+    if(expr.castType.isDefined){
+      if !Utility.isCastValid(scope.getUncastTypeOf(expr), expr.castType.get) then throw new Exception("Type validity not yet supported")
+
+    }
 
     expr match
       case Assign(target, arg) =>
@@ -311,6 +374,7 @@ object ExpressionParser {
                 )
               }
       case BooleanLiteral(_) =>
+      case BankLiteral(_) =>
       case UnaryOp(op, arg) =>
         typeCheck(filename, arg, scope)
         typeCheckUnary(op, scope.getTypeOf(arg))

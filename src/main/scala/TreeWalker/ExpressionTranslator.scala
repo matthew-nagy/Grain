@@ -227,6 +227,7 @@ object Getting{
   def getAddressIntoAcumulator(address: Address): List[IR.Instruction] = {
     address match
       case Direct(value) => IR.Load(Immediate(value), AReg()) :: Nil
+      case DirectLabel(label) => IR.Load(Label(label), AReg()) :: Nil
       case DirectIndexed(offset, by) => IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: Nil
       case DirectIndirect(value) => IR.Load(Direct(value), AReg()) :: Nil
       case DirectIndexedIndirect(offset, by) => IR.Load(DirectIndexed(offset, by), AReg()) :: Nil
@@ -237,9 +238,7 @@ object Getting{
         IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil
   }
 
-  //There seems to be indirects where there shouldn't be occasionally
-  //ie, at 100 there is an arrayptr
-  //and (100) is loaded. It should just be 100, as you load the ptr
+
   def getIndexOfPtr(ptrExpr: Expr.Expr, index: Expr.Expr, scope: TranslatorScope): (Address, IRBuffer) = {
     val (addressOfPtr, codeToGetAddressOfPtr) = getAddressOf(ptrExpr, scope)
     val innerSizeOfArray = getInternalSizeOfArray(ptrExpr, scope.inner)
@@ -390,11 +389,15 @@ object ExpressionTranslator {
       ).foldLeft(IRBuffer().toList)(_ ::: _)
     )
     function match
+      //TODO differentiate between function and function ptr
+      //Oh god the mistakes
       case Expr.Variable(funcToken) =>
         val functionSymbol = scope.getSymbol(funcToken.lexeme)
         val functionDefinitionLine = functionSymbol.lineNumber.toString
+        val functionLabel = Label("func_" ++ funcToken.lexeme)
+        scope.getTranslatorSymbolTable.usedFunctionLabels.addOne(functionLabel.name)
         AccumulatorLocation(
-          buffer.append(IR.JumpLongSaveReturn(Label("func_" ++ funcToken.lexeme)))
+          buffer.append(IR.JumpLongSaveReturn(functionLabel))
         )
       case _ => throw new Exception("Cannot call type at this time")
     buffer.append(scope.getFixStackDecay())
@@ -451,6 +454,9 @@ object ExpressionTranslator {
       case BooleanLiteral(value) => AccumulatorLocation(
         loadImmediate(AReg(), if(value) 1 else 0)
       )
+      case BankLiteral(intermediateValue) => AccumulatorLocation(
+        IRBuffer().append(IR.Load(BankImmediate(intermediateValue), AReg()))
+      )
       case UnaryOp(op, arg) =>
         val toGetArg = getFromAccumulator(arg, scope)
         val afterArg = op match
@@ -505,7 +511,8 @@ object ExpressionTranslator {
 
         buffer.append(scope.getFixStackDecay())
         AccumulatorLocation(buffer)
-      case FunctionCall(function, arguments) => translateFunctionCall(function, arguments, scope)
+      case FunctionCall(function, arguments) =>
+        translateFunctionCall(function, arguments, scope)
       case NumericalLiteral(value) => AccumulatorLocation(loadImmediate(AReg(), value))
       case Indirection(expr) =>
         val (address, irToGetTheAddress) = Getting.getAddressOf(expr, scope)
@@ -584,6 +591,7 @@ object ExpressionTranslator {
       case BinaryOp(_, _, _) => stackFromAccumulator(expr, scope)
       case NumericalLiteral(_) => stackFromAccumulator(expr, scope)
       case BooleanLiteral(_) => stackFromAccumulator(expr, scope)
+      case BankLiteral(_) => stackFromAccumulator(expr, scope)
       case Indirection(_) => stackFromAccumulator(expr, scope)//May be improvable later
       case Variable(name) =>
         scope.getSymbol(name.lexeme).dataType match
@@ -617,6 +625,7 @@ object EXPTranslatorMain{
     val filename = "src/main/ExpressionParserTest.txt"
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename)
     val symbolTable = new SymbolTable
+    val translatorSymbolTable = new TranslatorSymbolTable
 
     symbolTable.globalScope.addSymbol(
       Token(TokenType.Identifier, "a", 0), Utility.Word(), Symbol.Variable(), filename
@@ -628,7 +637,7 @@ object EXPTranslatorMain{
     while(tokenBuffer.peekType != TokenType.EndOfFile){
       val exp = Parser.ExpressionParser.parseOrThrow(symbolTable.globalScope, tokenBuffer)
       println(exp)
-      println(ExpressionTranslator.getFromAccumulator(exp, TranslatorScope(symbolTable.globalScope)))
+      println(ExpressionTranslator.getFromAccumulator(exp, TranslatorScope(symbolTable.globalScope, translatorSymbolTable)))
     }
   }
 }

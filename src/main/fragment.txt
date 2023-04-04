@@ -1,31 +1,21 @@
-class SomeClass{
-    val1: word
-    val2: word
-    boolVal: bool
-    reference: SomeClass ptr
+load guy, guyPalette from "littleGuy.png"
+
+include "src/main/GrainLib/DMA.grain"
+include "src/main/GrainLib/Hardware.grain"
+
+func main(){
+    setScreenDisabledAndBrightness(true, 15)
+
+    dmaToVRam(guy, bankof(guy), sizeof(guy))
+    dmaToCGRam(guyPalette, bankof(guyPalette), sizeof(guyPalette))
+    executeDMA()
+
+    enableInputAndNMI()
+    setScreenDisabledAndBrightness(false, 15)
+
+    while true do frame()
 }
 
-func setupInstancePtr(instance: SomeClass ptr){
-    @instance.val2 = 7
-    @instance.reference = instance
-}
+func VBlank(){
 
-globalArray: word[8]
-func checkGlobalArray(){
-    index: word = 7
-    globalArray[5] = 2
-    globalArray[index] = 3
-    globalArray[globalArray[1]] = 4
-    globalArray[globalArray[1] + 2] = 4
-    globalArray[globalArray[1] + index] = 4
-}
-
-func checkLocalArray(){
-    localArray: word[8]
-    index: word = 7
-    localArray[5] = 2
-    localArray[index] = 3
-    localArray[localArray[1]] = 4
-    localArray[localArray[1] + 2] = 4
-    localArray[localArray[1] + index] = 4
 }

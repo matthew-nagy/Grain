@@ -16,6 +16,8 @@ enum TokenType:
        Abs, As, Assembly, Break, Case, Class, Do, Else, False, From, Func, For, If,
        Include, Load, Match, Null, Referencing, Return, Tile, True,
        Then, While,
+  //Little built in pre process things
+       SizeOf, LengthOf, BankOf, BitPerPixelOf,
 
 
        EndOfFile, ErrorToken
@@ -98,7 +100,12 @@ object Token{
     "and" -> And,
     "or" -> Or,
     "xor" -> Xor,
-    "not" -> Bang
+    "not" -> Bang,
+
+    "sizeof" -> SizeOf,
+    "lengthof" -> LengthOf,
+    "bankof" -> BankOf,
+    "bppof" -> BitPerPixelOf
   )
 
 }

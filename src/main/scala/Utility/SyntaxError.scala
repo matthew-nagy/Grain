@@ -120,4 +120,34 @@ object Errors{
       filename, badToken.lineNumber,
       "In class with name \"" ++ className ++ "\", function \"" ++ badToken.lexeme ++ "\" must have a definition"
     )
+
+  def CannotGetLengthOfNonArrayType(filename: String, badExpr: Grain.Expr.Expr, badType: Utility.Type, lineNumber: Int): SyntaxError =
+    SyntaxError(
+      filename, lineNumber,
+      "Cannot get length of non array type. " ++ badExpr.toString ++ " has type " ++ badType.toString
+    )
+
+  def CannotGetBitDepthOfNonVariable(filename: String, badExpr: Grain.Expr.Expr, lineNumber: Int): SyntaxError =
+    SyntaxError(
+      filename, lineNumber,
+      "Cannot get bit depth of non variable expression. Expression given was " ++ badExpr.toString
+    )
+
+  def CannotGetBitDepthOfNonSprite(filename: String, badExpr: Grain.Expr.Expr, badType: Utility.Type, lineNumber: Int): SyntaxError =
+    SyntaxError(
+      filename, lineNumber,
+      "Cannot get bit depth of non sprite-typed expression. Expression " ++ badExpr.toString ++ " has type " ++ badType.toString
+    )
+
+  def CannotGetBankOfNonVariable(filename: String, badExpr: Grain.Expr.Expr, lineNumber: Int): SyntaxError =
+    SyntaxError(
+      filename, lineNumber,
+      "Cannot get data bank of non variable expression. Expression given was " ++ badExpr.toString
+    )
+
+  def CannotGetBankOfNonData(filename: String, badExpr: Grain.Expr.Expr, badType: Utility.Type, lineNumber: Int): SyntaxError =
+    SyntaxError(
+      filename, lineNumber,
+      "Cannot get data bank of non loaded-variable type. Expression " ++ badExpr.toString ++ " has type " ++ badType.toString
+    )
 }
