@@ -1,6 +1,6 @@
 func enableInputAndNMI()asm{
     "sep #$20"
-    "lda %10000001"
+    "lda #%10000001"
     "sta $4200"
     "rep #$20"
     "rtl"
@@ -32,6 +32,21 @@ func setScreenDisabledAndBrightness(screenDisabled: bool, brightness: word)asm{
     "rtl"
 }
 
+class Input{
+    Left: bool
+    Right: bool
+    Up: bool
+    Down: bool
+    A: bool
+    B: bool
+    X: bool
+    Y: bool
+    L: bool
+    R: bool
+    Start: bool
+    Select: bool
+}
+
 func getPlayerInput(playerNumber: word): word asm{
     "lda 4, s"
     "asl"
@@ -40,12 +55,61 @@ func getPlayerInput(playerNumber: word): word asm{
     "lda $4212"
     "and #1"
     "bne func_getPlayerInput_waitForUserInput"
-    "lda $4216, x"
+    ";lda $4216, x"
+    "lda $4218"
+    "sta $30"
     "rtl"
+}
+
+func updatePlayerInput(inputPtr: Input ptr, playerNumber: word){
+    inputFlags: word = getPlayerInput(playerNumber)
+    //Set it all to false
+    for i: word = 0; i < 12; i = i + 1 do (inputPtr as word ptr)[i] = 0
+    if (inputFlags & 0b1000000000000000) > 0 then @inputPtr.B = true
+    if (inputFlags & 0b0100000000000000) > 0 then @inputPtr.Y = true
+    if (inputFlags & 0b0010000000000000) > 0 then @inputPtr.Select = true
+    if (inputFlags & 0b0001000000000000) > 0 then @inputPtr.Start = true
+    if (inputFlags & 0b0000100000000000) > 0 then @inputPtr.Up = true
+    if (inputFlags & 0b0000010000000000) > 0 then @inputPtr.Down = true
+    if (inputFlags & 0b0000001000000000) > 0 then @inputPtr.Left = true
+    if (inputFlags & 0b0000000100000000) > 0 then @inputPtr.Right = true
+    if (inputFlags & 0b0000000010000000) > 0 then @inputPtr.A = true
+    if (inputFlags & 0b0000000001000000) > 0 then @inputPtr.X = true
+    if (inputFlags & 0b0000000000100000) > 0 then @inputPtr.L = true
+    if (inputFlags & 0b0000000000010000) > 0 then @inputPtr.R = true
 }
 
 func frame() asm{
     "inc 6"
     "wai"
+    "rtl"
+}
+
+func enableScreens(bg1: bool, bg2: bool, bg3: bool, bg4: bool, obj: bool) asm{
+    "sep #$20"
+
+    "lda 4, s"
+    "asl"
+    "ora 6, s"
+    "asl"
+    "ora 8, s"
+    "asl"
+    "ora 10, s"
+    "asl"
+    "ora 12, s"
+    "sta $212c"
+
+    "rep #$20"
+    "rtl"
+}
+
+//Slightly faster, if lower level. ---abcde a: Obj  b: Bg1  c: Bg2  d: Bg3  e: Bg4
+func enableScreensFromMask(enableMask: word) asm{
+    "sep #$20"
+
+    "lda 4, s"
+    "sta $212c"
+
+    "rep #$20"
     "rtl"
 }

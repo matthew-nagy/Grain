@@ -73,10 +73,10 @@ object StatementTranslator {
         blockScope.reduceStack()
       case EmptyStatement() => Nil
       case Expression(expr) => toAccumulator(expr, scope)
-      case For(startStmt, breakExpr, incrimentExpr, body, lineNumber) =>
+      case For(startStmt, breakExpr, incrimentExpr, body, lineNumber, fileIndex) =>
         val forScope = scope.getChild(stmt)
-        val startForLabel = Label("for_l" ++ lineNumber.toString)
-        val endForLabel = Label("for_end_l" ++ lineNumber.toString)
+        val startForLabel = Label("for_l" ++ lineNumber.toString ++ "_f" ++ fileIndex.toString)
+        val endForLabel = Label("for_end_l" ++ lineNumber.toString ++ "_f" ++ fileIndex.toString)
         val startCode = if(startStmt.isDefined) translateStatement(startStmt.get, forScope).toList else Nil
         var fixConditionStack = List.empty[IR.Instruction]
         var breakCode = List.empty[IR.Instruction]
@@ -92,9 +92,9 @@ object StatementTranslator {
         forScope.extendStack() ::: startCode ::: (IR.PutLabel(startForLabel) :: Nil) ::: breakCode ::: fixConditionStack :::
         forBodyCode ::: incCode ::: (IR.BranchShort(startForLabel) :: IR.PutLabel(endForLabel) :: Nil) :::
         forScope.reduceStack() ::: fixConditionStack
-      case If(condition, body, elseBranch, lineNumber) =>
-        val elseStartLabel = Label("Else_l" ++ lineNumber.toString)
-        val ifEndLabel = Label("If_End_l" ++ lineNumber.toString)
+      case If(condition, body, elseBranch, lineNumber, fileIndex) =>
+        val elseStartLabel = Label("Else_l" ++ lineNumber.toString ++ "_f" ++ fileIndex.toString)
+        val ifEndLabel = Label("If_End_l" ++ lineNumber.toString ++ "_f" ++ fileIndex.toString)
         val ifScope = scope.getChild(stmt)
         val elseBody: List[IR.Instruction] = (if(elseBranch.isDefined) translateStatement(elseBranch.get, ifScope).toList else Nil)
         val sizeUpBodyCode = translateStatement(body, ifScope).toList
@@ -107,15 +107,30 @@ object StatementTranslator {
           else Nil
 
         ifScope.rememberStackLocation()
-        ifScope.extendStack() :::
-        getConditionCode(condition, ifScope, elseStartLabel, BranchType.IfFalse, IR.sizeOfIr(sizeUpBodyCode)) :::
-        translateStatement(body, ifScope).toList ::://Re-translate the body code
-        ifEnder :::
-        (IR.PutLabel(elseStartLabel) :: Nil) :::
-        (if(elseBranch.isDefined) translateStatement(elseBranch.get, ifScope).toList else Nil) ::://Re-translate the else code
-        (IR.PutLabel(ifEndLabel) :: Nil) :::
-        ifScope.reduceStack() :::
-        ifScope.getFixStackDecay().toList
+
+        def impureReduceStack(): List[IR.Instruction] = {
+          val a = ifScope.reduceStack()
+          println("Reducing stack is -> " ++ a.toString())
+          a
+        }
+        def impureFixDecay(): List[IR.Instruction] = {
+          val a = ifScope.getFixStackDecay().toList
+          println("Fixing decay is -> " ++ a.toString())
+          a
+        }
+
+        val extendIR = ifScope.extendStack()
+        val conditionIR = getConditionCode(condition, ifScope, elseStartLabel, BranchType.IfFalse, IR.sizeOfIr(sizeUpBodyCode))
+        val bodyIR = translateStatement(body, ifScope).toList //Re-translate the body code
+        val enderAndElseStartIR = ifEnder ::: (IR.PutLabel(elseStartLabel) :: Nil)
+        val elseBodyIR = (if(elseBranch.isDefined) translateStatement(elseBranch.get, ifScope).toList else Nil) //Re-translate the else code
+        val endIfIR = (IR.PutLabel(ifEndLabel) :: Nil)
+        val reduceStackIR = impureReduceStack()
+        val fixDecayIR = impureFixDecay()
+
+        extendIR ::: conditionIR ::: bodyIR ::: enderAndElseStartIR ::: elseBodyIR ::: endIfIR ::: reduceStackIR ::: fixDecayIR
+        //ifScope.reduceStack() :::
+        //ifScope.getFixStackDecay().toList
 
 
 //        scope.rememberStackLocation()
@@ -138,10 +153,10 @@ object StatementTranslator {
               IR.TransferYTo(AReg()) :: IR.ReturnLong() :: Nil)
 
       case VariableDecl(varDecl) => toAccumulator(varDecl, scope)
-      case While(condition, body, lineNumber) =>
+      case While(condition, body, lineNumber, fileIndex) =>
         val whileScope = scope.getChild(stmt)
-        val startLabel = Label("While_l" ++ lineNumber.toString)
-        val endLabel = Label("While_End_l" ++ lineNumber.toString)
+        val startLabel = Label("While_l" ++ lineNumber.toString ++ "_f" ++ fileIndex.toString)
+        val endLabel = Label("While_End_l" ++ lineNumber.toString ++ "_f" ++ fileIndex.toString)
         val bodyCode = translateStatement(body, whileScope)
 
         val whileStart = whileScope.extendStack() :::

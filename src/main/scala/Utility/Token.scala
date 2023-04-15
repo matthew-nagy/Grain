@@ -17,7 +17,7 @@ enum TokenType:
        Include, Load, Match, Null, Referencing, Return, Tile, True,
        Then, While,
   //Little built in pre process things
-       SizeOf, LengthOf, BankOf, BitPerPixelOf,
+       SizeOf, LengthOf, BankOf, BitPerPixelOf, AsColour,
 
 
        EndOfFile, ErrorToken
@@ -105,7 +105,8 @@ object Token{
     "sizeof" -> SizeOf,
     "lengthof" -> LengthOf,
     "bankof" -> BankOf,
-    "bppof" -> BitPerPixelOf
+    "bppof" -> BitPerPixelOf,
+    "ascolour" -> AsColour
   )
 
 }

@@ -67,7 +67,7 @@ class ImageLoader(image: BufferedImage, filename: String) {
           plane2.append(if (((indices(y)(x) >> secondShifter) & 0x01) > 0) "1" else "0")
         }
 
-        val line = ".db %" ++ plane1.reverse.toString() ++ " %" ++ plane2.reverse.toString()
+        val line = ".db %" ++ plane1.toString() ++ " %" ++ plane2.toString()
         buffer.addOne(line)
         plane1.clear()
         plane2.clear()
@@ -100,13 +100,13 @@ class ImageLoader(image: BufferedImage, filename: String) {
 
   def getBpp: Utility.Bitdepth = {
     val numberOfColours = palette.size + 1
-    if(numberOfColours <= 2){
+    if(numberOfColours <= 4){
       2
     }
-    else if(numberOfColours <= 4){
+    else if(numberOfColours <= 16){
       4
     }
-    else if(numberOfColours <= 8){
+    else if(numberOfColours <= 256){
       8
     }
     else{
@@ -172,7 +172,9 @@ object ImageLoader {
 
     println(photo.getRGB(2, 3).toHexString)
 
-    (new ImageLoader(photo, filename)).toLoadedImage()
+    val image = (new ImageLoader(photo, filename)).toLoadedImage()
+    println(image.bpp)
+    image
   }
 
   def main(args: Array[String]): Unit = {

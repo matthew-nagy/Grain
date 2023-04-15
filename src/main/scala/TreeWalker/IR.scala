@@ -33,7 +33,7 @@ case class DirectIndirect(address: Int) extends Address with SimpleIndirectRemov
 case class DirectIndexedIndirect(address: Int, by: GeneralPurposeReg) extends Address with SimpleIndirectRemovable
 case class DirectIndirectIndexed(address: Int, by: GeneralPurposeReg) extends Address with Offsetable
 case class StackRelative(offset: Int) extends Address with Offsetable
-case class StackRelativeIndirectIndexed(offset: Int, by: GeneralPurposeReg) extends Address with Offsetable
+case class StackRelativeIndirectIndexed(offset: Int, by: YReg) extends Address with Offsetable
 
 def getAddressWithAlteredStack(value: Address, stackChange: Int): Address =
   value match

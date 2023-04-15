@@ -81,7 +81,7 @@ object StatementParser {
     tokenBuffer.matchType(TokenType.Do)
     val body = parseOrThrow(forScope, tokenBuffer)
 
-    val forStmt = Stmt.For(startStmt, breakExpr, incrimentExpr, body, forLine)
+    val forStmt = Stmt.For(startStmt, breakExpr, incrimentExpr, body, forLine, tokenBuffer.getFileIndex)
     scope.linkStatementWithScope(forStmt, forScope)
     forStmt
   }
@@ -105,7 +105,7 @@ object StatementParser {
     val elseStmt = if(tokenBuffer.peekType != TokenType.Else) None
                    else Some(parseElse(ifScope, tokenBuffer))
 
-    val ifStmt = Stmt.If(condition, ifBody, elseStmt, ifLine)
+    val ifStmt = Stmt.If(condition, ifBody, elseStmt, ifLine, tokenBuffer.getFileIndex)
     scope.linkStatementWithScope(ifStmt, ifScope)
     ifStmt
   }
@@ -138,7 +138,9 @@ object StatementParser {
     else {
       tokenBuffer.advance()
       val init = ExpressionParser.parseOrThrow(scope, tokenBuffer)
-      Stmt.VariableDecl(Expr.Assign(varSymbol.token, init))
+      val result = Stmt.VariableDecl(Expr.Assign(varSymbol.token, init))
+      println(result)
+      result
     }
   }
 
@@ -149,7 +151,7 @@ object StatementParser {
     tokenBuffer.matchType(TokenType.Do)
     val body = parseOrThrow(whileScope, tokenBuffer)
 
-    val whileStmt = Stmt.While(condition, body, whileLine)
+    val whileStmt = Stmt.While(condition, body, whileLine, tokenBuffer.getFileIndex)
     scope.linkStatementWithScope(whileStmt, whileScope)
     whileStmt
   }
@@ -165,7 +167,7 @@ object StatementParser {
         })
       case EmptyStatement() =>
       case Expression(expr) => ExpressionParser.typeCheck(filename, expr, scope)
-      case For(startExpr, breakExpr, incrimentExpr, body, _) =>
+      case For(startExpr, breakExpr, incrimentExpr, body, _, _) =>
         val forScope = scope.getChildOrThis(statement)
         startExpr.exists(value =>{
           typeCheck(filename, value, forScope)
@@ -182,7 +184,7 @@ object StatementParser {
         typeCheck(filename, body, forScope)
       case FunctionDecl(_, _, body) => typeCheck(filename, body, scope.getChildOrThis(statement))
       case Else(_) => throw Exception("Else branch shouldn't be triggered; handle in the if")
-      case If(condition, body, elseBranch, _) =>
+      case If(condition, body, elseBranch, _, _) =>
         ExpressionParser.typeCheck(filename, condition, scope)
         val ifScope = scope.getChildOrThis(statement)
         typeCheck(filename, body, ifScope)
@@ -210,7 +212,7 @@ object StatementParser {
             assignToken.lexeme ++ " of type " ++ scope(assignToken.lexeme).dataType.toString ++ " cannot be innitializeationabled with type " ++ scope.getTypeOf(initializer).toString
           )
         }
-      case While(condition, body, _) =>
+      case While(condition, body, _, _) =>
         ExpressionParser.typeCheck(filename, condition, scope)
         if(!Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType())){
           throw Errors.badlyTyped(

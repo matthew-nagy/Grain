@@ -1,6 +1,22 @@
-func setVramTarget(targetLocation: word) asm{
+func setVRamTarget(targetLocation: word) asm{
     "lda 4, s"
     "sta $2116"
+    "rtl"
+}
+
+func setCGRamTarget(targetLocation: word) asm{
+    "sep #$20"
+    "lda 4, s"
+    "sta $2121"
+    "rep #20"
+    "rtl"
+}
+
+func setOamTarget(targetLocation: word) asm{
+    "sep #$20"
+    "lda 4, s"
+    "sta $2102"
+    "rep #20"
     "rtl"
 }
 
@@ -60,5 +76,6 @@ func executeDMA()asm{
     "lda 4"
     "stz 4"
     "sta $420B"
+    "rep #$20"
     "rtl"
 }

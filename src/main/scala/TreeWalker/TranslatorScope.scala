@@ -56,8 +56,8 @@ class TranslatorScope(private val innerScope: Scope, private val translatorSymbo
       (for i <- Range(0, stackExtentions) yield IR.PushDummyValue(XReg())).toList
     }
     else{
-      IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() ::
-        IR.AddCarry(Immediate(innerScope.size)) :: IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
+      IR.TransferToAccumulator(StackPointerReg()) :: IR.SetCarry() ::
+        IR.SubtractCarry(Immediate(innerScope.size)) :: IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
     }
   }
 
@@ -67,8 +67,8 @@ class TranslatorScope(private val innerScope: Scope, private val translatorSymbo
       (for i <- Range(0, stackExtentions) yield IR.PopDummyValue(XReg())).toList
     }
     else {
-      IR.TransferToAccumulator(StackPointerReg()) :: IR.SetCarry() ::
-        IR.SubtractCarry(Immediate(innerScope.size)) :: IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
+      IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() ::
+        IR.AddCarry(Immediate(innerScope.size)) :: IR.TransferAccumulatorTo(StackPointerReg()) :: Nil
     }
   }
 

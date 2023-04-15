@@ -161,9 +161,14 @@ object ExpressionParser {
         case _ => throw Errors.expectedUnary(tokenBuffer.getFilename, token)
       }
       val right = parseUnary(scope, tokenBuffer)
-      Expr.UnaryOp(op, right)
+      right match
+        case NumericalLiteral(value) => Expr.NumericalLiteral(value * -1)
+        case _ =>
+          Expr.UnaryOp(op, right)
     }
-    parseTypeAlteration(scope, tokenBuffer)
+    else {
+      parseTypeAlteration(scope, tokenBuffer)
+    }
   }
 
   private def parseTypeAlteration(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
@@ -337,6 +342,20 @@ object ExpressionParser {
               case Symbol.Data(_, _, dataBank) => Expr.BankLiteral(dataBank)
               case _ => throw Errors.CannotGetBankOfNonData(tokenBuffer.getFilename, innerExpr, bankedSymbol.dataType, token.lineNumber)
           case _ => throw Errors.CannotGetBankOfNonVariable(tokenBuffer.getFilename, innerExpr, token.lineNumber)
+      case TokenType.AsColour =>
+        tokenBuffer.matchType(TokenType.LeftParen)
+
+        val r = tokenBuffer.matchType(TokenType.IntLiteral).lexeme.toInt
+        tokenBuffer.matchType(TokenType.Comma)
+        val g = tokenBuffer.matchType(TokenType.IntLiteral).lexeme.toInt
+        tokenBuffer.matchType(TokenType.Comma)
+        val b = tokenBuffer.matchType(TokenType.IntLiteral).lexeme.toInt
+        tokenBuffer.matchType(TokenType.Comma)
+        val a = tokenBuffer.matchType(TokenType.IntLiteral).lexeme.toInt
+
+        tokenBuffer.matchType(TokenType.RightParen)
+
+        Expr.NumericalLiteral(r + (g << 5) + (b << 10) + (a << 15))
       case _ =>
         throw Errors.ExpectedExpression(tokenBuffer.getFilename, token)
   }

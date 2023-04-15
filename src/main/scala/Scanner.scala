@@ -161,6 +161,7 @@ object Scanner{
         val tType = scanToken()
         val subStr = charBank.getSubstring
         val newToken = new Token(tType, if(tType == TokenType.StringLiteral) subStr.tail.init else subStr, tokenLineNumber)
+        //println(newToken)
         tokens = tokens :+ newToken
       }
 

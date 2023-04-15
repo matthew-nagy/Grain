@@ -9,8 +9,10 @@ import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 
 
-class TokenBuffer(private val tokens: List[Token], filename: String){
+class TokenBuffer(private val tokens: List[Token], filename: String, fileIndex: Int){
   private var index = 0
+
+  def getFileIndex: Int = fileIndex
 
   def getFilename: String = filename
 
@@ -54,6 +56,7 @@ class TokenBuffer(private val tokens: List[Token], filename: String){
       throw Errors.expectedTokenError(filename, peek, requestedType)
     }
   }
+
 
   override def toString: String =
     (for token<- tokens yield ("\n\t" ++ token.toString))
@@ -110,6 +113,8 @@ def returnTypeOrError[T](action: =>T): T | SyntaxError =
     case e@_ => throw e//SyntaxError(-1, "Unknown error type; '" ++ e.toString ++ "'")
 
 object TopLevelParser{
+
+  var fileIndex = 0
 
   case class Result(statements: List[Stmt.TopLevel], errors: List[Utility.SyntaxError])
 
@@ -241,7 +246,8 @@ object TopLevelParser{
     tokenBuffer.matchType(TokenType.Include)
     val newFilenameToken = tokenBuffer.matchType(TokenType.StringLiteral)
 
-    val newTokenBuffer = TokenBuffer(Scanner.scanText(newFilenameToken.lexeme), newFilenameToken.lexeme)
+    fileIndex += 1
+    val newTokenBuffer = TokenBuffer(Scanner.scanText(newFilenameToken.lexeme), newFilenameToken.lexeme, fileIndex)
     val result = apply(scope, newTokenBuffer)
     if(result.errors.nonEmpty){
       throw Errors.VariousErrors(newFilenameToken.lexeme, result.errors)
@@ -304,7 +310,7 @@ object TopLevelParser{
 
 object ParseMain{
   def main(args: Array[String]): Unit = {
-    val tokenBuffer = TokenBuffer(Scanner.scanText("parserTest.txt"), "parserText.txt")
+    val tokenBuffer = TokenBuffer(Scanner.scanText("parserTest.txt"), "parserText.txt", 0)
     val symbolTable = new SymbolTable
 
     val result = TopLevelParser(symbolTable.globalScope, tokenBuffer)

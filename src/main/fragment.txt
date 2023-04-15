@@ -1,19 +1,15 @@
-load guy, guyPalette from "littleGuy.png"
-
 include "src/main/GrainLib/DMA.grain"
 include "src/main/GrainLib/Hardware.grain"
+include "src/main/GrainLib/Backgrounds.grain"
 
 func main(){
-    setScreenDisabledAndBrightness(true, 15)
 
-    dmaToVRam(guy, bankof(guy), sizeof(guy))
-    dmaToCGRam(guyPalette, bankof(guyPalette), sizeof(guyPalette))
-    executeDMA()
+    while 1==1 do{}
 
     enableInputAndNMI()
     setScreenDisabledAndBrightness(false, 15)
 
-    while true do frame()
+    while true do {}
 }
 
 func VBlank(){

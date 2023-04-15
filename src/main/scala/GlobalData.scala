@@ -30,8 +30,8 @@ object GlobalData {
     val maxConditionalJumpLength = 128
 
     val fileStart: List[String] = List(
-      ".include \"Header.inc\"",
-      ".include \"Snes_Init.asm\"",
+      ".include \"snes/Header.inc\"",
+      ".include \"snes/Snes_Init.asm\"",
       ".bank 0",
       ".org $0",
       "Start:",

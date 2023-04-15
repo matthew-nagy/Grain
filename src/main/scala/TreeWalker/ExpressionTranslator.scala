@@ -242,21 +242,21 @@ object Getting{
   def getIndexOfPtr(ptrExpr: Expr.Expr, index: Expr.Expr, scope: TranslatorScope): (Address, IRBuffer) = {
     val (addressOfPtr, codeToGetAddressOfPtr) = getAddressOf(ptrExpr, scope)
     val innerSizeOfArray = getInternalSizeOfArray(ptrExpr, scope.inner)
-    def getIndexToX():IRBuffer =
+    def getIndexTo(reg: GeneralPurposeReg):IRBuffer =
       index match
         case NumericalLiteral(value) =>
-          IRBuffer().append(IR.Load(Immediate(value * innerSizeOfArray), XReg()))
+          IRBuffer().append(IR.Load(Immediate(value * innerSizeOfArray), reg))
         case _ =>
           ExpressionTranslator.getFromAccumulator(index, scope).toGetThere
             .append(correctAccumulatorIndexByType(ptrExpr, scope.inner))
-            .append(IR.TransferToX(AReg()))
+            .append(IR.TransferAccumulatorTo(reg))
     addressOfPtr match
       case Direct(location) =>
-        val toAccumulatorToX = getIndexToX()
+        val toAccumulatorToX = getIndexTo(XReg())
         (DirectIndirectIndexed(location, XReg()), codeToGetAddressOfPtr.append(toAccumulatorToX))
       case StackRelative(offset) =>
-        val toAccumulatorToX = getIndexToX()
-        (StackRelativeIndirectIndexed(offset, XReg()), codeToGetAddressOfPtr.append(toAccumulatorToX))
+        val toAccumulatorToX = getIndexTo(YReg())
+        (StackRelativeIndirectIndexed(offset, YReg()), codeToGetAddressOfPtr.append(toAccumulatorToX))
       case _ =>
         val ptrToAccumulator = IR.Load(addressOfPtr, AReg())
         index match
@@ -439,6 +439,7 @@ object ExpressionTranslator {
               val (addressWithStackCorrection, toGetAddressWithStackCorrection) = Getting.getAddressOf(getter, scope) //get again with the stack sorted
               intoStack.address match
                 case StackRelative(2) =>
+                  scope.pop()
                   AccumulatorLocation(
                     intoStack.toGetThere
                       .append(toGetAddressWithStackCorrection)
@@ -623,7 +624,7 @@ object ExpressionTranslator {
 object EXPTranslatorMain{
   def main(args: Array[String]): Unit = {
     val filename = "src/main/ExpressionParserTest.txt"
-    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename)
+    val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename, 0)
     val symbolTable = new SymbolTable
     val translatorSymbolTable = new TranslatorSymbolTable
 

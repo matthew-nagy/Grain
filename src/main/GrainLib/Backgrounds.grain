@@ -1,4 +1,18 @@
 
+
+func setBackgroundColour(colour: word) asm{
+    "sep #$20"
+
+    "stz $2121"
+    "lda 4, s"
+    "sta $2122"
+    "lda 5, s"
+    "sta $2122"
+
+    "rep #$20"
+    "rtl"
+}
+
 //backgroundNumber is 1-4
 func setBackgroundScroll(backgroundNumber: word, xScroll: word, yScroll: word) asm{
     "lda 8, s"
@@ -6,4 +20,42 @@ func setBackgroundScroll(backgroundNumber: word, xScroll: word, yScroll: word) a
     "tax"
     "lda 6, s"
     "xba"
+}
+
+func setBackgroundFlagsAndModes(tileSizeFlags: word, mode: word, highPriority3: bool) asm{
+    "sep #$20"
+    "lda 8, s"//Put the flags in the top 4 bits
+    "asl"
+    "asl"
+    "asl"
+    "asl"
+    "ora 6, s"//OR in the mode
+    "tax"
+    "lda 4, s"
+    "bne +"//shorthand branch if 1
+    "txa"
+    "ora #%00001000"//high priority layer 3 flag
+    "bra ++"
+    "+:"
+    "txa"
+    "++:"
+    "sta $2105"
+    "rep #$20"
+    "rtl"
+}
+
+//Background is 1-4
+func setBackgroundAddressAndSize(background: word, address: word, size: word) asm{
+    "sep #$30"
+
+    "lda 8, s"//The background index
+    "tax"//Lowest background reg is $2107, so we could load from $2106 for 1 indexing
+    "lda 6, s"
+    "asl"
+    "asl"
+    "ora 4, s"//Shifted the address and have the size be the last 2 bits
+    "sta $2106, x"
+
+    "rep #$30"
+    "rtl"
 }
