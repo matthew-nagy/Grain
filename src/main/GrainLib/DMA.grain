@@ -26,9 +26,8 @@ func setOamTarget(targetLocation: word) asm{
 //Does it matter what channel is what lmao
 //there is no documentation on what happens for a double write
 //jesus the SNES is shit
-func dmaToVRam(sourceAddress: tile_data ptr, sourceBank: data_bank, transferSize: word) asm{
+func dmaGraphicsToVRam(sourceAddress: tile_data ptr, sourceBank: data_bank, transferSize: word) asm{
     //For now assume channel 0 is for VRAM
-
     "lda 4"
     "ora #%00000001"
     "sta 4"
@@ -47,6 +46,13 @@ func dmaToVRam(sourceAddress: tile_data ptr, sourceBank: data_bank, transferSize
 
     "rep #$20"
     "rtl"
+}
+//These are basically the same function as above, just with a different function signiture
+func dmaDataToVRam(sourceAddress: rom_word ptr, sourceBank: data_bank, transferSize: word)asm{
+    "bra func_dmaGraphicsToVRam"
+}
+func dmaArrayToVRam(sourceAddress: word ptr, sourceBank: word, transferSize: word)asm{
+    "bra func_dmaGraphicsToVRam"
 }
 
 func dmaToCGRam(sourceAddress: palette_data ptr, sourceBank: data_bank, transferSize: word) asm{

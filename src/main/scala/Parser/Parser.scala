@@ -1,7 +1,7 @@
 package Parser
 
 import Grain.*
-import Tool.ImageLoader
+import Tool.{BinaryLoader, ImageLoader}
 import Utility.{Errors, SyntaxError, Token, TokenType, Type}
 
 import scala.annotation.tailrec
@@ -223,9 +223,8 @@ object TopLevelParser{
         Stmt.PaletteReference(referenceImageFilename.lexeme, referenceIndex.lexeme.toInt) :: parseReferencing(tokenBuffer)
       case _ => Nil
   }
-  private def parseLoad(scope: GlobalScope, tokenBuffer: TokenBuffer): Stmt.TopLevel = {
-    tokenBuffer.matchType(TokenType.Load)
-    val spriteToken = tokenBuffer.matchType(TokenType.Identifier)
+
+  private def parseGraphisLoad(scope: GlobalScope, tokenBuffer: TokenBuffer, spriteToken: Token): Stmt.TopLevel = {
     tokenBuffer.matchType(TokenType.Comma)
     val paletteToken = tokenBuffer.matchType(TokenType.Identifier)
     tokenBuffer.matchType(TokenType.From)
@@ -238,7 +237,25 @@ object TopLevelParser{
     scope.addSymbol(spriteToken, Utility.Array(Utility.Sprite(loadedImage.bpp), loadedImage.numberOfTiles), Symbol.Data(loadedImage.dataStrings, loadedImage.dataSize), tokenBuffer.getFilename)
     scope.addSymbol(paletteToken, Utility.Array(Utility.Palette(), loadedImage.numberOfPalettes), Symbol.Data(loadedImage.paletteStrings, loadedImage.palleteSize), tokenBuffer.getFilename)
 
-    Stmt.Load(spriteToken, paletteToken, mainFilename, references)
+    Stmt.LoadGraphics(spriteToken, paletteToken, mainFilename, references)
+  }
+
+  private def parseDataLoad(scope: GlobalScope, tokenBuffer: TokenBuffer, varToken: Token): Stmt.TopLevel = {
+    tokenBuffer.matchType(TokenType.From)
+    val filename = tokenBuffer.matchType(TokenType.StringLiteral)
+
+    val readBinary = BinaryLoader(filename.lexeme)
+
+    scope.addSymbol(varToken, Utility.Array(Utility.ROMWord(), readBinary.wordLength), Symbol.Data(readBinary.binaryStrings, readBinary.wordLength), tokenBuffer.getFilename)
+    Stmt.LoadData(varToken, filename)
+  }
+  private def parseLoad(scope: GlobalScope, tokenBuffer: TokenBuffer): Stmt.TopLevel = {
+    tokenBuffer.matchType(TokenType.Load)
+    val varToken = tokenBuffer.matchType(TokenType.Identifier)
+    tokenBuffer.peekType match
+      case TokenType.Comma => parseGraphisLoad(scope, tokenBuffer, varToken)
+      case TokenType.From => parseDataLoad(scope, tokenBuffer, varToken)
+      case _ => throw Errors.InvalidLoadType(tokenBuffer.getFilename, tokenBuffer.peek)
   }
 
   def parseInclude(scope: GlobalScope, tokenBuffer: TokenBuffer): List[Stmt.TopLevel] = {

@@ -111,8 +111,8 @@ object GrainTranslator {
                 (IR.PutLabel(Label("main_function")) :: Nil, "main_function")
               case "VBlank" =>
                 translatorSymbolTable.usedFunctionLabels.addOne("VBlank")
-                (IR.PutLabel(Label("VBlank")) :: IR.PushRegister(AReg()) :: IR.PushRegister(XReg()) :: IR.PushRegister(YReg()) ::
-                IR.PushProcessorStatus() :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil ::: VBlankReturnIfFrameIsUnfinished, "VBlank")
+                (IR.PutLabel(Label("VBlank")) :: IR.PushRegister(AReg()) ::  IR.PushRegister(XReg()) :: IR.PushRegister(YReg()) ::
+                IR.PushProcessorStatus() :: Nil ::: VBlankReturnIfFrameIsUnfinished ::: IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0x80), AReg()) :: IR.Store(Direct(0x2100), AReg()) :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil, "VBlank")
               case _ => (IR.PutLabel(Label(defaultFuncLabel)) :: Nil, defaultFuncLabel)
 
             val saveStack = IR.TransferToX(StackPointerReg()) :: IR.PushRegister(XReg()).addComment("Record stack frame") :: Nil
@@ -129,17 +129,22 @@ object GrainTranslator {
 
             val funcEnd = funcSymbol.name match
               case "main" => IR.StopClock().addComment("At the end of main") :: Nil
-              case "VBlank" => IR.PutLabel(VBlankEndLabel) :: IR.PullProcessorStatus() :: IR.PopRegister(YReg()) :: IR.PopRegister(XReg()) :: IR.PopRegister(AReg()) :: IR.ReturnFromInterrupt() :: Nil
+              case "VBlank" => IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0x0F), AReg()) :: IR.Store(Direct(0x2100), AReg()) :: IR.PutLabel(VBlankEndLabel) :: IR.PullProcessorStatus() :: IR.PopRegister(YReg()) :: IR.PopRegister(XReg()) :: IR.PopRegister(AReg()) :: IR.ReturnFromInterrupt() :: Nil
               case _ => IR.ReturnLong() :: Nil
 
             val instructionList = functionStart ::: saveStack ::: prepareStack ::: translatedBody.toList ::: fixStack ::: funcEnd
 
             FunctionCode(IRBuffer().append(instructionList).append(IR.Spacing()), chosenLabel) :: Nil
-      case Load(varName, palleteName, filename, references) =>
+      case LoadGraphics(varName, palleteName, filename, references) =>
         val spriteSheetForm = scope.getSymbol(varName.lexeme).form.asInstanceOf[Symbol.Data]
         val paletteForm = scope.getSymbol(palleteName.lexeme).form.asInstanceOf[Symbol.Data]
 
         DataCode(varName.lexeme, spriteSheetForm.values, spriteSheetForm.dataBank) :: DataCode(palleteName.lexeme, paletteForm.values, paletteForm.dataBank) :: Nil
+      case LoadData(varName, filename) =>
+        //Are you proud of me Alex
+        val dataData = scope.getSymbol(varName.lexeme).form.asInstanceOf[Symbol.Data]
+
+        DataCode(varName.lexeme, dataData.values, dataData.dataBank) :: Nil
 
       case _ => throw new Exception("Not done yet -> " ++ topLevel.toString)
 

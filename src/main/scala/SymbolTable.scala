@@ -1,5 +1,5 @@
 package Grain
-import Utility.{Errors, Token, Type, Word, getTypeSize}
+import Utility.{Errors, ROMWord, Token, Type, Word, getTypeSize}
 
 import scala.collection.mutable.*
 
@@ -205,6 +205,7 @@ class SymbolTable{
   val types: Map[String, Type] = Map(
     "word" -> Word(),
     "bool" -> Utility.BooleanType(),
+    "rom_word" -> ROMWord(),
     "bit_depth" -> Utility.BitdepthType(),
     "data_bank" -> Utility.DataBankIndex(),
     "tile_data" -> Utility.SpriteType(),

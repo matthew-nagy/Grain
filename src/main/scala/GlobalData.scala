@@ -25,7 +25,7 @@ object GlobalData {
   }
 
   object snesData{
-    val bankSize = 65536
+    val bankSize = 0x5000 //0x7FFF - the 0x1FFF WRAM mirror
     val generalInstructionSize = 3
     val maxConditionalJumpLength = 128
 

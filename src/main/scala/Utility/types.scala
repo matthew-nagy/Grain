@@ -26,6 +26,7 @@ case class DataBankIndex() extends SpecialType
 
 case class Empty() extends Type
 case class Word() extends Type
+case class ROMWord() extends Type
 case class BooleanType() extends Type
 case class StringLiteral() extends Type
 case class Ptr(to: Type) extends PtrType{
@@ -95,6 +96,7 @@ def getTypeSize(dataType: Type):Int = {
   dataType match
     case Empty() => 0
     case Word() => 2
+    case ROMWord() => getTypeSize(Word())
     case BooleanType() => 2
     case Ptr(_) => 2
     case Array(of, length) =>

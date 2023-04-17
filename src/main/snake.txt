@@ -1,5 +1,6 @@
 load backgroundSprites, backgroundPalette from "SnakeBackground.png"
 load snakeSprites, snakePalette from "SnakePlayfield.png"
+load tilemap from "tilemap.csv"
 
 include "src/main/GrainLib/DMA.grain"
 include "src/main/GrainLib/Hardware.grain"
@@ -49,11 +50,11 @@ func isSnakeTile(x: word, y: word): bool{
     return atTileID == snakeHeadTile or atTileID == snakeBodyTile or atTileID == snakeTailTile
 }
 func spawnFruit(){
-    x: word = random() & 0xF
-    y: word = random() & 0xF
+    x: word = random() & 0x1F
+    y: word = random() & 0x1F
 
-    if x > 30 then x = 10
-    if y > 30 then y = 10
+    if x >= 30 then x = 10
+    if y >= 20 then y = y - 16
 
     if isSnakeTile(x, y) or (x == lastFruit.x and y == lastFruit.y) then{
         spawnFruit()
@@ -67,7 +68,7 @@ func spawnFruit(){
 
 func sendDataToBackground2(){
     setVRamTarget(0x800)
-    dmaToVRam(background as tile_data ptr, 0 as data_bank, 2048)
+    dmaArrayToVRam(background as word ptr, 0, 2048)
     executeDMA()
 }
 
@@ -80,31 +81,6 @@ func detailBackground1(){
         textLine[i] = index
         index = index + 1
     }
-}
-
-func initBackground1(){
-    //First 5 lines (with cast to make it slightly faster
-    for i: word = 0; i < 160; i = i + 1 do
-        (background as word[1024])[i] = emptyTile
-
-    topLine: word ptr = background[5][0]@
-    topLine[0] = emptyTile
-    for i: word = 1; i < 31; i = i + 1 do topLine[i] = 2
-    topLine[31] = emptyTile
-
-    y: word = 6
-    for ; y < 26; y = y + 1 do{
-        line: word ptr = background[y][0]@
-        line[0] = 1
-        line[31] = emptyTile
-        for x: word = 1; x < 31; x = x + 1 do line[x] = 0
-    }
-    for ; y < 32; y = y + 1 do
-        for x: word = 0; x < 32; x = x + 1 do
-            background[y][x] = emptyTile
-
-    detailBackground1()
-    setBackgroundAddressAndSize(2, 1, 0)
 }
 
 func initSnake(){
@@ -132,19 +108,19 @@ func initSnake(){
 
 func setup(){
     setScreenDisabledAndBrightness(true, 0)
-    dmaToVRam(backgroundSprites, bankof(backgroundSprites), sizeof(backgroundSprites))
+    dmaGraphicsToVRam(backgroundSprites, bankof(backgroundSprites), sizeof(backgroundSprites))
     dmaToCGRam(snakePalette, bankof(snakePalette), 64)
     executeDMA()
 
-    dmaToVRam(snakeSprites, bankof(snakeSprites), sizeof(snakeSprites))
+    dmaGraphicsToVRam(snakeSprites, bankof(snakeSprites), sizeof(snakeSprites))
     dmaToCGRam(backgroundPalette, bankof(backgroundPalette), 32)
     executeDMA()
 
     setBackgroundColour(ascolour(0, 7, 2, 0))
 
     setVRamTarget(0x400)
-    initBackground1()
-    dmaToVRam(background as tile_data ptr, 0 as data_bank, 2048)
+    setBackgroundAddressAndSize(2, 1, 0)
+    dmaDataToVRam(tilemap, bankof(tilemap), sizeof(tilemap))
     executeDMA()
 
     initSnake()
@@ -226,13 +202,18 @@ func addGameOverText(){
 
 func main(){
     setSeed(0x92A6)//Certainly not a homestuck reference
-    setup()
+    while true do{
+        setup()
 
-    while gameRunning do updateFrame()
+        while gameRunning do updateFrame()
 
-    addGameOverText()
+        addGameOverText()
 
-    while true do frame()
+        while playerInput.R == false do{
+            updatePlayerInput(playerInput@, 1)
+            frame()
+        }
+    }
 }
 
 func VBlank(){

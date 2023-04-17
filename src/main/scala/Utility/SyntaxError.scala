@@ -150,4 +150,16 @@ object Errors{
       filename, lineNumber,
       "Cannot get data bank of non loaded-variable type. Expression " ++ badExpr.toString ++ " has type " ++ badType.toString
     )
+
+  def InvalidLoadType(filename: String, badToken: Token): SyntaxError =
+    SyntaxError(
+      filename, badToken.lineNumber,
+      "Expected a comma-seperated palette identifier or 'from', was given " ++ badToken.lexeme
+    )
+
+  def UnrecognisedFileExtension(extension: String, filename: String, acceptedExtensions: List[String]): SyntaxError =
+    SyntaxError(
+      filename, -1,
+      "Unrecognised extension for data '" ++ extension ++ "'. Accepted extensions are" ++ acceptedExtensions.foldLeft("")(_ ++ ", '" ++ _) ++ "'"
+    )
 }

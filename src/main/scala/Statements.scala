@@ -28,7 +28,8 @@ package Stmt:
   case class Include(filename: Token) extends TopLevel
 
   case class PaletteReference(referenceFilename: String, tileIndex: Int)
-  case class Load(varName: Token, palleteName: Token, filename: Token, references: List[PaletteReference]) extends TopLevel
+  case class LoadGraphics(varName: Token, palleteName: Token, filename: Token, references: List[PaletteReference]) extends TopLevel
+  case class LoadData(varName: Token, filename: Token) extends TopLevel
 
   def OptimiseStatement(stmt: Statement): Statement =
     stmt match
