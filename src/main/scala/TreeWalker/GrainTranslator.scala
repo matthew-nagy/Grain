@@ -158,8 +158,8 @@ object GrainTranslator {
   def main(args: Array[String]): Unit = {
     var filename = "src/main/"
     //filename += "array2d.txt"
-    //filename += "fragment.txt"
-    filename += "snake.txt"
+    filename += "fragment.txt"
+    //filename += "snake.txt"
 
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename, 0)
     //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/GrainLib/Random.grain"))

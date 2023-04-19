@@ -327,7 +327,7 @@ object TopLevelParser{
 
 object ParseMain{
   def main(args: Array[String]): Unit = {
-    val tokenBuffer = TokenBuffer(Scanner.scanText("parserTest.txt"), "parserText.txt", 0)
+    val tokenBuffer = TokenBuffer(Scanner.scanText("src/main/fragment.txt"), "src/main/fragment.txt", 0)
     val symbolTable = new SymbolTable
 
     val result = TopLevelParser(symbolTable.globalScope, tokenBuffer)

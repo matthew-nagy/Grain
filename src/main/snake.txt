@@ -100,10 +100,21 @@ func initSnake(){
     setTile(20, 10, snakeBodyTile)
     setTile(20, 9, snakeHeadTile)
 
+    tailIndex = 0
+    headIndex = 2
+
     playerVelocity.x = 0
     playerVelocity.y = -1
 
     setBackgroundAddressAndSize(1, 2, 0)
+}
+
+func secondarySetup(){
+    initSnake()
+    lastFruit.x = -1
+    lastFruit.y = -1
+    spawnFruit()
+    sendDataToBackground2()
 }
 
 func setup(){
@@ -123,11 +134,7 @@ func setup(){
     dmaDataToVRam(tilemap, bankof(tilemap), sizeof(tilemap))
     executeDMA()
 
-    initSnake()
-    lastFruit.x = -1
-    lastFruit.y = -1
-    spawnFruit()
-    sendDataToBackground2()
+    secondarySetup()
 
     enableScreens(true, true, false, false, false)
     enableInputAndNMI()
@@ -202,9 +209,8 @@ func addGameOverText(){
 
 func main(){
     setSeed(0x92A6)//Certainly not a homestuck reference
+    setup()
     while true do{
-        setup()
-
         while gameRunning do updateFrame()
 
         addGameOverText()
@@ -213,6 +219,9 @@ func main(){
             updatePlayerInput(playerInput@, 1)
             frame()
         }
+
+        secondarySetup()
+        gameRunning = true
     }
 }
 

@@ -139,7 +139,6 @@ object StatementParser {
       tokenBuffer.advance()
       val init = ExpressionParser.parseOrThrow(scope, tokenBuffer)
       val result = Stmt.VariableDecl(Expr.Assign(varSymbol.token, init))
-      println(result)
       result
     }
   }

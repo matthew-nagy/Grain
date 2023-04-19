@@ -7,7 +7,7 @@ enum TokenType:
        Minus, Plus, Star, Struct, Slash, Percent, Or, And, Equal, Xor, Bang, Tilde,
        Greater, Less,
   //Double character tokens
-       BangEqual, EqualEqual, LessEqual, GreaterEqual, ShiftLeft, ShiftRight,
+       BangEqual, EqualEqual, LessEqual, GreaterEqual, ShiftLeft, ShiftRight, Multiply8, Divide8, Modulo8,
   //Literals
        Identifier, IntLiteral, StringLiteral,
   //Built-in Types
@@ -60,7 +60,7 @@ object Token{
   val singleCharTokens: Map[Char, TokenType] = Map(
     '(' -> LeftParen, ')' -> RightParen, '{' -> LeftBrace, '}' -> RightBrace, '[' -> LeftSquare, ']' -> RightSquare,
     ',' -> Comma, '.' -> Dot, '@' -> Asperand, ':' -> Colon, ';' -> Semicolon,
-    '-' -> Minus, '+' -> Plus, '*' -> Star, '/' -> Slash, '%' -> Percent, '|' -> Or, '&' -> And, '^' -> Xor, '~' -> Tilde
+    '-' -> Minus, '+' -> Plus, '|' -> Or, '&' -> And, '^' -> Xor, '~' -> Tilde
   )
 
   val doubleCharTokens: Map[Char, DoubleTokenEntry] = Map(
@@ -68,6 +68,9 @@ object Token{
     '<' -> DoubleTokenEntry(Less, List(TokenOption('=', LessEqual), TokenOption('<', ShiftLeft))),
     '>' -> DoubleTokenEntry(Greater, List(TokenOption('=', GreaterEqual), TokenOption('>', ShiftRight))),
     '=' -> DoubleTokenEntry(Equal, List(TokenOption('=', EqualEqual))),
+    '*' -> DoubleTokenEntry(Star, List(TokenOption('_', Multiply8))),
+    '/' -> DoubleTokenEntry(Slash, List(TokenOption('_', Divide8))),
+    '%' -> DoubleTokenEntry(Percent, List(TokenOption('_', Modulo8)))
   )
 
   val keywordMap: Map[String, TokenType] = Map(

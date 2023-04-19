@@ -10,10 +10,13 @@ package Operation:
 
 
   enum Binary:
-    case Add, Subtract, Multiply, Divide, Modulo,
-         And, Or, Xor,
-         Less, LessEqual, Greater, GreaterEqual, Equal, NotEqual,
-         ShiftLeft, ShiftRight
+    case Add, Subtract,
+          Multiply, Multiply8Bit,
+          Divide, Divide8Bit,
+          Modulo, Modulo8Bit,
+          And, Or, Xor,
+          Less, LessEqual, Greater, GreaterEqual, Equal, NotEqual,
+          ShiftLeft, ShiftRight
 
   //Unfinished
   def applyOperation(op: Unary, value: Int): Int =
@@ -35,8 +38,11 @@ package Operation:
       case Binary.Add => left + right
       case Binary.Subtract => left - right
       case Binary.Multiply => left * right
+      case Binary.Multiply8Bit => left * (right & 0xFF)
       case Binary.Divide => left / right
+      case Binary.Divide8Bit => left / (right & 0xFF)
       case Binary.Modulo => left % right
+      case Binary.Modulo8Bit => left % (right & 0xFF)
       case Binary.And => left & right
       case Binary.Or => left | right
       case Binary.Xor => left ^ right
@@ -52,7 +58,9 @@ package Operation:
 
   object Groups{
     val ArithmeticTokens: Set[Binary] = Set(
-      Binary.Add, Binary.Subtract, Binary.Multiply, Binary.Divide, Binary.Modulo,
+      Binary.Add, Binary.Subtract, Binary.Multiply, Binary.Multiply8Bit,
+      Binary.Divide, Binary.Divide8Bit,
+      Binary.Modulo, Binary.Modulo8Bit,
       Binary.ShiftLeft, Binary.ShiftRight
     )
     val RelationalTokens: Set[Binary] = Set(
@@ -63,7 +71,10 @@ package Operation:
     )
 
     val orderImportantOperations: Set[Operation.Binary] = Set(
-      Operation.Binary.Subtract, Operation.Binary.Divide
+      Operation.Binary.Subtract,
+      Operation.Binary.Modulo, Operation.Binary.Modulo8Bit,
+      Operation.Binary.Divide, Operation.Binary.Divide8Bit,
+      Operation.Binary.Multiply, Operation.Binary.Multiply8Bit
     )
     
     val oppositeMap: Map[Binary, Binary] = Map(
@@ -138,6 +149,7 @@ package Expr:
     mult 1 and mult 0 is obs
     Powers of 2, rather than just 2 should cause a shift
     other shit*/
+    //Everything to do with other versions of multiplication and division too
     import Operation.{Unary as UOp, Binary as BOp}
     treeOptimisedExpr match
       case BinaryOp(op, NumericalLiteral(val1), NumericalLiteral(val2)) =>

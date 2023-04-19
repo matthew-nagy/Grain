@@ -3,11 +3,18 @@ include "src/main/GrainLib/Hardware.grain"
 include "src/main/GrainLib/Backgrounds.grain"
 
 func main(){
-
-    while 1==1 do{}
-
-    enableInputAndNMI()
-    setScreenDisabledAndBrightness(false, 15)
+    asm{
+        "ldx #1"
+        "Top:"
+        "cpx #1"
+        //"beq Top"
+    }
+    something: word = 50
+    somethingElse: word = 7
+    value: word = something %_ somethingElse
+    asm{
+        "tax"
+    }
 
     while true do {}
 }

@@ -108,25 +108,14 @@ object StatementTranslator {
 
         ifScope.rememberStackLocation()
 
-        def impureReduceStack(): List[IR.Instruction] = {
-          val a = ifScope.reduceStack()
-          println("Reducing stack is -> " ++ a.toString())
-          a
-        }
-        def impureFixDecay(): List[IR.Instruction] = {
-          val a = ifScope.getFixStackDecay().toList
-          println("Fixing decay is -> " ++ a.toString())
-          a
-        }
-
         val extendIR = ifScope.extendStack()
         val conditionIR = getConditionCode(condition, ifScope, elseStartLabel, BranchType.IfFalse, IR.sizeOfIr(sizeUpBodyCode))
         val bodyIR = translateStatement(body, ifScope).toList //Re-translate the body code
         val enderAndElseStartIR = ifEnder ::: (IR.PutLabel(elseStartLabel) :: Nil)
         val elseBodyIR = (if(elseBranch.isDefined) translateStatement(elseBranch.get, ifScope).toList else Nil) //Re-translate the else code
         val endIfIR = (IR.PutLabel(ifEndLabel) :: Nil)
-        val reduceStackIR = impureReduceStack()
-        val fixDecayIR = impureFixDecay()
+        val reduceStackIR = ifScope.reduceStack()
+        val fixDecayIR = ifScope.getFixStackDecay().toList
 
         extendIR ::: conditionIR ::: bodyIR ::: enderAndElseStartIR ::: elseBodyIR ::: endIfIR ::: reduceStackIR ::: fixDecayIR
         //ifScope.reduceStack() :::

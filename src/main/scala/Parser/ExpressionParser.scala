@@ -2,7 +2,6 @@ package Parser
 
 import Grain.*
 import Grain.Expr.*
-import Utility.TokenType.Asperand
 import Utility.{Errors, Struct, SyntaxError, TokenType}
 
 object ExpressionParser {
@@ -21,9 +20,13 @@ object ExpressionParser {
       case Expr.Assign(name, arg) => Expr.Assign(name, swapArithmeticBranches(arg))
       case Expr.UnaryOp(op, arg) => Expr.UnaryOp(op, swapArithmeticBranches(arg))
       case Expr.BinaryOp(op, left, right) =>
-        if(Operation.Groups.orderImportantOperations.contains(op))
+        if(Operation.Groups.orderImportantOperations.contains(op)) {
+          println("Swapping")
+          println("\t" ++ expr.toString)
+          println("to")
+          println("\t" ++ Expr.BinaryOp(op, right, left).toString)
           Expr.BinaryOp(op, right, left)
-        else expr
+        } else expr
       case Expr.Indirection(expr) => Expr.Indirection(swapArithmeticBranches(expr))
       case Expr.FunctionCall(function, arguments) =>
         Expr.FunctionCall(swapArithmeticBranches(function), arguments.map(swapArithmeticBranches))
@@ -139,12 +142,15 @@ object ExpressionParser {
   }
   private def parseFactor(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr = {
     val expr = parseUnary(scope, tokenBuffer)
-    if((TokenType.Star :: TokenType.Slash :: TokenType.Percent :: Nil).contains(tokenBuffer.peekType)){
+    if((TokenType.Star :: TokenType.Multiply8 :: TokenType.Slash :: TokenType.Divide8 :: TokenType.Percent :: TokenType.Modulo8 :: Nil).contains(tokenBuffer.peekType)){
       val tokenType = tokenBuffer.advance().tokenType
       val op = tokenType match
         case TokenType.Star => Operation.Binary.Multiply
+        case TokenType.Multiply8 => Operation.Binary.Multiply8Bit
         case TokenType.Slash => Operation.Binary.Divide
+        case TokenType.Divide8 => Operation.Binary.Divide8Bit
         case TokenType.Percent => Operation.Binary.Modulo
+        case TokenType.Modulo8 => Operation.Binary.Modulo8Bit
         case _ => throw new Exception("Shouldn't be able to get here")
       val right = parseUnary(scope, tokenBuffer)
       return Expr.BinaryOp(op, expr, right)

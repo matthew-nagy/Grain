@@ -170,10 +170,9 @@ object ImageLoader {
       throw ConversionError.invalidHeight(photo.getHeight, filename)
     }
 
-    println(photo.getRGB(2, 3).toHexString)
 
     val image = (new ImageLoader(photo, filename)).toLoadedImage()
-    println(image.bpp)
+    
     image
   }
 

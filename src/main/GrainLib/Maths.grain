@@ -1,0 +1,18 @@
+func getHigherProductBytes() asm{
+    "lda $2135"
+    "rtl"
+}
+
+//Perhaps you calculated one and now want the other
+//Using these functions takes much less computation than
+//doing it all again
+func getLastQuotient() asm{
+    "lda $4214"
+    "rtl"
+}
+func getLastRemainder() asm{
+    "lda $4216"
+    "rtl"
+}
+
+

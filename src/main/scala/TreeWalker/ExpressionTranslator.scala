@@ -192,7 +192,11 @@ object Getting{
         throw new Exception("Can't multiply yet. Size of " ++ size.toString ++ " isn't possible") //TODO
   }
 
-  private def offsetAddress(address: Offsetable, offset: Int): (Address, IRBuffer) =
+  private def useAddressAsIndirectIndexed(address: Address, offset: Int, toGetHere: IRBuffer): (Address, IRBuffer) =
+    (DirectIndexed(offset, XReg()), toGetHere.append(IR.Load(address, AReg()) :: IR.TransferToX(AReg()) :: Nil))
+
+
+  def offsetAddress(address: Offsetable, offset: Int): (Address, IRBuffer) =
     address match
       case Direct(value) => (Direct(value + offset), IRBuffer())
       case DirectIndexed(value, by) => (DirectIndexed(value + offset, by), IRBuffer())
@@ -203,6 +207,13 @@ object Getting{
       case StackRelativeIndirectIndexed(value, by) => (StackRelativeIndirectIndexed(value, by), IRBuffer()
         .append(IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: IR.TransferToAccumulator(by) :: Nil)
       )
+
+  def certainlyOffsetAddress(address: Address, offset: Int): (Address, IRBuffer) =
+    address match
+      case offsetable: Offsetable => offsetAddress(offsetable, offset)
+      case simpleIndirectRemovable: SimpleIndirectRemovable =>
+        val withoutIndirection = simpleRemoveIndirect(simpleIndirectRemovable)
+        useAddressAsIndirectIndexed(withoutIndirection, offset, IRBuffer())
 
   def asIndirect(address: Address): Option[Address] =
     address match
@@ -307,10 +318,6 @@ object Getting{
   }
 
   def getAddressOf(expr: Expr.Expr, scope: TranslatorScope): (Address, IRBuffer) = {
-    def useAddressAsIndirectIndexed(address: Address, offset: Int, toGetHere: IRBuffer): (Address, IRBuffer) =
-      (DirectIndexed(offset, XReg()), toGetHere.append(IR.Load(address, AReg()) :: IR.TransferToX(AReg()) :: Nil))
-
-
     expr match
       case Variable(varToken) => (scope.getAddress(varToken.lexeme), IRBuffer())
       case Get(innerExpr, memberToken) =>
@@ -420,6 +427,44 @@ object ExpressionTranslator {
         buffer
   }
 
+  //TODO This is dumb, give both expressions as an expression. The stack thing could be silly
+  //TODO very useful to have that start thing finished for when you need to make sure you are in bank 0
+  //TODO currently everything assumes an 8-bit right hand side
+  //Fix that nonsense
+  private def translateHardwareMaths(op: Operation.Binary, leftLocation: StackLocation, expr: Expr.Expr): List[IR.Instruction] = {
+    //val start = IR.TransferToY(AReg()) :: IR.Load(leftLocation.address, AReg()) :: IR.TransferToX(AReg()) ::
+    val startDivision: List[IR.Instruction] = IR.TransferToX(AReg()) :: IR.Load(leftLocation.address, AReg()) :: IR.SetReg8Bit(RegisterGroup.XY) ::
+      IR.Store(Direct(GlobalData.Addresses.dividendLowByte), XReg()) :: IR.Store(Direct(GlobalData.Addresses.divisor), AReg()) :: Nil
+    val waitForDivisionResult: List[IR.Instruction] = Range(0, 8).map(nothing => IR.NOP()).toList
+
+    val putRightInMultiplicand = IR.SetReg8Bit(RegisterGroup.A) :: IR.Store(Direct(GlobalData.Addresses.signedMultiplyMultiplicand), AReg()) :: IR.ExchangeAccumulatorBytes() ::
+      IR.Store(Direct(GlobalData.Addresses.signedMultiplyMultiplicand), AReg()) :: Nil
+
+    val (offsetLocation, toOffsetLocation) = Getting.certainlyOffsetAddress(leftLocation.address, 1)
+
+    op match
+      case Operation.Binary.Multiply8Bit =>
+        println(expr)
+         putRightInMultiplicand ::: (IR.Load(leftLocation.address, AReg()) ::
+          IR.Store(Direct(GlobalData.Addresses.signedMultiplyMultiplier), AReg()) :: IR.SetReg16Bit(RegisterGroup.A) ::
+          IR.Load(Direct(GlobalData.Addresses.signedMultiplyLowByteResult), AReg()) :: Nil)
+
+      case Operation.Binary.Multiply =>
+        throw Exception("Not heccin done")
+
+      case Operation.Binary.Divide8Bit =>
+        val getResult = IR.Load(Direct(GlobalData.Addresses.divisionResultLowByte), AReg()) :: IR.SetReg16Bit(RegisterGroup.XY) :: Nil
+        startDivision ::: waitForDivisionResult ::: getResult
+      case Operation.Binary.Divide =>
+        throw Exception("Not heccin done")
+      case Operation.Binary.Modulo8Bit =>
+        val getResult = IR.Load(Direct(GlobalData.Addresses.divisionRemainderLowByte), AReg()) :: IR.SetReg16Bit(RegisterGroup.XY) :: Nil
+        startDivision ::: waitForDivisionResult ::: getResult
+      case Operation.Binary.Modulo =>
+        throw Exception("Not heccin done")
+      case _ => throw new Exception("Binary operation not supported yet '" ++ op.toString ++ "' in expression '" ++ expr.toString ++ "'")
+  }
+
   def getFromAccumulator(expr: Expr.Expr, scope: TranslatorScope): AccumulatorLocation = {
     val result: AccumulatorLocation | StackLocation = expr match
       case Assign(target, arg) =>
@@ -506,8 +551,7 @@ object ExpressionTranslator {
               case Operation.Binary.And => IR.AND(leftToStack.address) :: Nil
               case Operation.Binary.Or => IR.ORA(leftToStack.address) :: Nil
               case Operation.Binary.Xor => IR.EOR(leftToStack.address) :: Nil
-
-              case _ => throw new Exception("Binary operation not supported yet '" ++ op.toString ++ "' in expression '" ++ expr.toString ++ "'")
+              case _ => translateHardwareMaths(op, leftToStack, expr)
             )
 
         buffer.append(scope.getFixStackDecay())
