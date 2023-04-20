@@ -164,7 +164,7 @@ class FunctionScope(parentScope: Option[Scope], symbolTable: SymbolTable) extend
 }
 
 class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable){
-  private var globalHeapPtr: Int = 100
+  private var globalHeapPtr: Int = GlobalData.Config.globalsStart
   private var currentDataBank: Int = 0
   private var currentBankSize: Int = 0
 

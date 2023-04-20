@@ -1,12 +1,55 @@
 package Grain
 
+import scala.language.implicitConversions
+import grapple.json.{Json, JsonInput, JsonObject, JsonValue, jsonValueToString}
+
+import java.nio.file.Path
+import scala.io.Source
+
 object GlobalData {
+  case class GlobalConfig(
+                           globalsStart: Int,
+                           assemblerPath: String, emulatorPath: String,
+                           includePaths: List[String], defaultOptimisations: Boolean,
+                           romHeaderPath: String, initPath: String, preSetupCode: List[String]
+                         )
+  private def loadGlobalConfig(): GlobalConfig = {
+    given JsonInput[GlobalConfig] with
+      def read(jsonVal: JsonValue): GlobalConfig =
+        jsonVal match{
+          case json: JsonObject =>
+            GlobalConfig(
+              json.getInt("globals_start"),
+              json.getString("assembler_path"), json.getString("emulator_path"),
+              json.getJsonArray("include_paths").values.map(_.as[String]).toList,
+              json.getBoolean("default_optimisations_full"),
+              json.getString("ROM_header_path"), json.getString("init_path"),
+              json.getJsonArray("pre_setup_code").values.map(_.as[String]).toList
+            )
+        }
+
+    val configFile = Source.fromFile("grain_config.json")
+      .getLines
+      .toList
+      .foldLeft("")(_ ++ _)
+
+    val newConfig = Json.parse(configFile).as[GlobalConfig]
+
+    //Quick sanity checks
+    if(newConfig.globalsStart < 18){
+      throw new Exception("Global data will be defined in memory used by Grain at runtime")
+    }
+
+    newConfig
+  }
+
+  val Config: GlobalConfig = loadGlobalConfig()
   object Addresses {
-    val logicalNotAddress = 0
-    val tempStack = 2
-    val dmaFlags = 4
-    val frameFinished = 6
-    val randomSeed = 10
+    val logicalNotAddress = 0 //Stores 0xFFFF to xor with the effect of a logical NOT
+    val tempStack = 2 //When you bank switch (when I add that), you can store where the stack *was*, here
+    val dmaFlags = 4  //Keep track of what channels you set up
+    val frameFinished = 6 //Has the current frame finished updating?
+    val randomSeed = 10 //Current random value
     val multiplicationResultHigh = 8
     val multiplicationResultLow = 12
     val hardwareMathsArgLeft = 14
@@ -25,7 +68,7 @@ object GlobalData {
   }
   
   object optimisationFlags{
-    private val optimisations = true
+    private val optimisations = Config.defaultOptimisations
     val staticOptimiseTree = true
     val stackPressureOptimisations = false
     val optimiseStackUsage: Boolean = optimisations
@@ -41,12 +84,12 @@ object GlobalData {
     val maxConditionalJumpLength = 128
 
     val fileStart: List[String] = List(
-      ".include \"snes/Header.inc\"",
-      ".include \"snes/Snes_Init.asm\"",
+      ".include \"" ++ Config.romHeaderPath ++ "\"",
+      ".include \"" ++ Config.initPath ++ "\"",
       ".bank 0",
       ".org $0",
-      "Start:",
-      "Snes_Init",
+      "Start:") :::
+      Config.preSetupCode ::: List(
       "rep #$30",
       "lda #$FFFF",
       "sta 0",

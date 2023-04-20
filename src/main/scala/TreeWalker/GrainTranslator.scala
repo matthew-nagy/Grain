@@ -156,10 +156,11 @@ object GrainTranslator {
   }
 
   def main(args: Array[String]): Unit = {
+    println(GlobalData.Config)
     var filename = "src/main/"
     //filename += "array2d.txt"
-    filename += "fragment.txt"
-    //filename += "snake.txt"
+    //filename += "fragment.txt"
+    filename += "snake.txt"
 
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename, 0)
     //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/GrainLib/Random.grain"))
@@ -195,8 +196,8 @@ object GrainTranslator {
     fileWriter.write(assembly)
     fileWriter.close()
 
-    {"snes/WLA/wla-65816.exe -v -o snes/compiled.obj snes/compiled.asm" !}
-    {"snes/WLA/wlalink snes/compiled.link snes/compiled.smc" !}
-    {".\\snes\\bsnes-plus\\bsnes.exe .\\snes\\compiled.smc" !}
+    {GlobalData.Config.assemblerPath ++ "wla-65816.exe -v -o snes/compiled.obj snes/compiled.asm" !}
+    {GlobalData.Config.assemblerPath ++ "wlalink snes/compiled.link snes/compiled.smc" !}
+    {GlobalData.Config.emulatorPath ++ " .\\snes\\compiled.smc" !}
   }
 }

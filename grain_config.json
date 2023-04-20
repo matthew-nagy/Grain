@@ -1,0 +1,10 @@
+{
+  "globals_start": 32,
+  "assembler_path": "snes/WLA/",
+  "emulator_path": ".\\snes\\bsnes-plus\\bsnes.exe",
+  "include_paths": ["src/main/GrainLib/"],
+  "default_optimisations_full": true,
+  "ROM_header_path": "snes/Header.inc",
+  "init_path": "snes/Snes_Init.asm",
+  "pre_setup_code": ["Snes_Init"]
+}
