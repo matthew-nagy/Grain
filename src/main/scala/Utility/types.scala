@@ -66,9 +66,15 @@ object Struct{
 }
 case class Struct(name: String, entries: ListBuffer[Struct.Entry], definedFunctions: ListBuffer[Symbol]) extends Type{
   private var cachedSize: Option[Int] = None
-  def size = cachedSize match
+
+  //Can be accessed as `val sSize = myStruct.size`.
+  def size: Int = cachedSize match
     case None =>
-      val result = if(entries.nonEmpty)entries.last.offset + getTypeSize(entries.last.symbol.dataType) else 0
+      val result =
+        if(entries.nonEmpty)
+          entries.last.offset + getTypeSize(entries.last.symbol.dataType)
+        else
+          0
       cachedSize = Some(result)
       result
     case Some(value) => value

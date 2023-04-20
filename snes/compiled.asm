@@ -70,12 +70,12 @@ sta 1, s	;Storing the assignment
 ;User Assembly
 tax
 ;End Assembly
-While_l19_f0:
+While_l18_f0:
 lda #1	;Condition: BooleanLiteral(true)
 cmp #1
-bne While_End_l19_f0	;End of condition (BooleanLiteral(true)), either branched if IfFalse or fallen through
-bra While_l19_f0
-While_End_l19_f0:
+bne While_End_l18_f0	;End of condition (BooleanLiteral(true)), either branched if IfFalse or fallen through
+bra While_l18_f0
+While_End_l18_f0:
 lda 7, s	;Fix stack before return
 tcs
 stp	;At the end of main

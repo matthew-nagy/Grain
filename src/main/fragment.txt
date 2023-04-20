@@ -9,8 +9,7 @@ func main(){
         "cpx #1"
         //"beq Top"
     }
-    something: word = 50
-    somethingElse: word = 7
+    something: word = 50 somethingElse: word = 7
     value: word = something %_ somethingElse
     asm{
         "tax"
