@@ -193,17 +193,25 @@ object TopLevelParser{
       Symbol.FunctionDefinition(tokenBuffer.peekType == TokenType.Assembly),
       tokenBuffer.getFilename)
 
+    val preAsmMMIO = tokenBuffer.peekType match
+      case TokenType.MMIO =>
+        tokenBuffer.advance()
+        true
+      case _ => false
+
+    functionScope.executesAsMMIO = preAsmMMIO
+
     tokenBuffer.peekType match
       case TokenType.Assembly =>
-        val funcStmt = Stmt.FunctionDecl(funcSymbol, arguments, StatementParser.parseAssembly(functionScope, tokenBuffer))
+        val funcStmt = Stmt.FunctionDecl(funcSymbol, arguments, StatementParser.parseAssembly(functionScope, tokenBuffer), preAsmMMIO)
         funcStmt
       case TokenType.LeftBrace =>
-        val funcStmt = Stmt.FunctionDecl(funcSymbol, arguments, StatementParser.parseBlock(functionScope, tokenBuffer))
+        val funcStmt = Stmt.FunctionDecl(funcSymbol, arguments, StatementParser.parseBlock(functionScope, tokenBuffer, preAsmMMIO), preAsmMMIO)
         funcStmt
       case _ => Stmt.EmptyStatement()
   }
   private def parseFunction(scope: GlobalScope, tokenBuffer: TokenBuffer): Stmt.TopLevel = {
-    val functionScope = scope.newFunctionChild()
+    val functionScope = scope.newFunctionChild(false)//Is set inside the function parser
     parseFunctionOrEmpty(scope, functionScope, tokenBuffer) match
       case funcStmt: Stmt.FunctionDecl =>
         scope.linkStatementWithScope(funcStmt, functionScope)
@@ -279,7 +287,7 @@ object TopLevelParser{
         className.lexeme ++ "." ++ oldDecl.funcSymbol.token.lexeme,
         oldDecl.funcSymbol.token.lineNumber
       ), oldDecl.funcSymbol.dataType, oldDecl.funcSymbol.form)
-    Stmt.FunctionDecl(newSymbol, oldDecl.arguments, oldDecl.body)
+    Stmt.FunctionDecl(newSymbol, oldDecl.arguments, oldDecl.body, oldDecl.mmio)
   }
   def parseClass(scope: GlobalScope, tokenBuffer: TokenBuffer): List[Stmt.TopLevel] = {
     tokenBuffer.matchType(TokenType.Class)
@@ -300,7 +308,7 @@ object TopLevelParser{
 
     while(tokenBuffer.peekType != TokenType.RightBrace){
       if(tokenBuffer.peekType == TokenType.Func){
-        val functionScope = scope.newFunctionChild()
+        val functionScope = scope.newFunctionChild(false)
         var funcName = Token(TokenType.ErrorToken, "", -1)
         val newFunction = parseFunctionOrEmpty(scope, functionScope, tokenBuffer, classArgParser, funcName = _)
         newFunction match

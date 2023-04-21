@@ -14,7 +14,7 @@ enum TokenType:
        Ptr, BitdepthLiteral, RamGateLiteral,
   //Keywords
        Abs, As, Assembly, Break, Case, Class, Do, Else, False, From, Func, For, If,
-       Include, Load, Match, Null, Referencing, Return, Tile, True,
+       Include, Load, MMIO, Null, Referencing, Return, Tile, True,
        Then, While,
   //Little built in pre process things
        SizeOf, LengthOf, BankOf, BitPerPixelOf, AsColour,
@@ -89,7 +89,7 @@ object Token{
     "if" -> If,
     "include" -> Include,
     "load" -> Load,
-    "match" -> Match,
+    "mmio" -> MMIO,
     "null" -> Null,
     "ptr" -> Ptr,
     "referencing" -> Referencing,

@@ -10,14 +10,14 @@ package Stmt:
   sealed trait TopLevel extends Statement
 
   case class Assembly(assembly: List[String]) extends Statement
-  case class Block(statements: List[Statement]) extends Statement
+  case class Block(statements: List[Statement], mmio: Boolean) extends Statement
   case class EmptyStatement() extends TopLevel
   case class Expression(expr: Expr.Expr) extends Statement
   case class For(
                   startStmt: Option[Statement], breakExpr: Option[Expr.Expr],
                   incrimentExpr: Option[Expr.Expr], body: Statement, lineNumber: Int, fileNumber: Int
                 ) extends Statement
-  case class FunctionDecl(funcSymbol: Symbol, arguments: List[Symbol], body: Block | Assembly) extends TopLevel
+  case class FunctionDecl(funcSymbol: Symbol, arguments: List[Symbol], body: Block | Assembly, mmio: Boolean) extends TopLevel
 
   case class Else(body: Statement) extends Statement
   case class If(condition: Expr.Expr, body: Statement, elseBranch: Option[Else], lineNumber: Int, fileNumber: Int) extends Statement
@@ -34,7 +34,7 @@ package Stmt:
   def OptimiseStatement(stmt: Statement): Statement =
     stmt match
       case Assembly(_) => stmt
-      case Block(statements) => Block(statements.map(OptimiseStatement))
+      case Block(statements, mmio) => Block(statements.map(OptimiseStatement), mmio)
       case Expression(expr) => Expression(Expr.OptimiseExpression(expr))
       case EmptyStatement() => EmptyStatement()
       case For(ss, be, ie, b, lineNumber, fileNumber) =>

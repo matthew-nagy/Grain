@@ -29,7 +29,7 @@ object Symbol{
   case class Data(values: List[String], var dataSize: Int, var dataBank: Int = 0) extends SymbolForm
 }
 
-class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable){
+class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable, val mmio: Boolean){
   import scala.collection.mutable.ListBuffer
   private val symbolMap = Map.empty[String, Symbol]
   private var frameSize = 0
@@ -97,7 +97,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
       case Some(scope) => scope.contains(index)
 
   def strictContains(index: String): Boolean = symbolMap.contains(index)
-  def newChild():Scope = Scope(Some(this), symbolTable)
+  def newChild(setAsMMIO: Boolean):Scope = Scope(Some(this), symbolTable, setAsMMIO || mmio)
   def linkStatementWithScope(parentStatement: Stmt.Statement, child: Scope): Stmt.Statement = {
     children.addOne(parentStatement, child)
     parentStatement
@@ -157,20 +157,26 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
     }
 }
 
-class FunctionScope(parentScope: Option[Scope], symbolTable: SymbolTable) extends Scope(parentScope, symbolTable){
+class FunctionScope(parentScope: Option[Scope], symbolTable: SymbolTable, mmio: Boolean) extends Scope(parentScope, symbolTable, mmio){
   private var returnType: Type = Utility.Empty()
+
+  //You only know if it is MMIO after the definition has been parsed
+  //Therefore when translating, this is here to store if function body should be mmio
+  //and hence how to handle the stack
+  var executesAsMMIO: Boolean = mmio
+
   override def getReturnType: Type = returnType
   def setReturnType(newReturnType: Type):Unit = returnType = newReturnType
 }
 
-class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable){
+class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable, false){
   private var globalHeapPtr: Int = GlobalData.Config.globalsStart
   private var currentDataBank: Int = 0
   private var currentBankSize: Int = 0
 
   private var parsedFileSet: Set[String] = Set.empty[String]
 
-  def newFunctionChild(): FunctionScope = FunctionScope(Some(this), symbolTable)
+  def newFunctionChild(isMMIO: Boolean): FunctionScope = FunctionScope(Some(this), symbolTable, isMMIO)
 
   private def stripFilename(filename: String): String = filename.split('/').last.split('\\').last
   def hasFileBeenParsed(filename: String): Boolean = parsedFileSet.contains(stripFilename(filename))

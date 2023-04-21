@@ -1,4 +1,4 @@
-func getHigherProductBytes() asm{
+func getHigherProductBytes() mmio asm{
     "lda $2135"
     "rtl"
 }
@@ -6,11 +6,11 @@ func getHigherProductBytes() asm{
 //Perhaps you calculated one and now want the other
 //Using these functions takes much less computation than
 //doing it all again
-func getLastQuotient() asm{
+func getLastQuotient() mmio asm{
     "lda $4214"
     "rtl"
 }
-func getLastRemainder() asm{
+func getLastRemainder() mmio asm{
     "lda $4216"
     "rtl"
 }

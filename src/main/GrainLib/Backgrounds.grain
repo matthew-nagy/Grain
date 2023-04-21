@@ -1,6 +1,6 @@
 
 
-func setBackgroundColour(colour: word) asm{
+func setBackgroundColour(colour: word) mmio asm{
     "sep #$20"
 
     "stz $2121"
@@ -14,7 +14,7 @@ func setBackgroundColour(colour: word) asm{
 }
 
 //backgroundNumber is 1-4
-func setBackgroundScroll(backgroundNumber: word, xScroll: word, yScroll: word) asm{
+func setBackgroundScroll(backgroundNumber: word, xScroll: word, yScroll: word) mmio asm{
     "lda 8, s"
     "asl"
     "tax"
@@ -22,7 +22,7 @@ func setBackgroundScroll(backgroundNumber: word, xScroll: word, yScroll: word) a
     "xba"
 }
 
-func setBackgroundFlagsAndModes(tileSizeFlags: word, mode: word, highPriority3: bool) asm{
+func setBackgroundFlagsAndModes(tileSizeFlags: word, mode: word, highPriority3: bool) mmio asm{
     "sep #$20"
     "lda 8, s"//Put the flags in the top 4 bits
     "asl"
@@ -45,7 +45,7 @@ func setBackgroundFlagsAndModes(tileSizeFlags: word, mode: word, highPriority3: 
 }
 
 //Background is 1-4
-func setBackgroundAddressAndSize(background: word, address: word, size: word) asm{
+func setBackgroundAddressAndSize(background: word, address: word, size: word) mmio asm{
     "sep #$30"
 
     "lda 8, s"//The background index

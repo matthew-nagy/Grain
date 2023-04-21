@@ -1,0 +1,78 @@
+[debug] > Exec(run, None, None)
+[debug] Evaluating tasks: Compile / run
+[debug] Running task... Cancel: Signal, check cycles: false, forcegc: true
+[info] compiling 22 Scala sources to C:\Users\mattt\Documents\Dissertation\Grain\target\scala-3.1.3\classes ...
+[warn] -- [E029] Pattern Match Exhaustivity Warning: C:\Users\mattt\Documents\Dissertation\Grain\src\main\scala\GlobalData.scala:19:8 
+[warn] 19 |        jsonVal match{
+[warn]    |        ^^^^^^^
+[warn]    |match may not be exhaustive.
+[warn]    |
+[warn]    |It would fail on pattern case: _: json.JsonArray, _: json.JsonString, _: json.JsonNumber, JsonTrue, JsonFalse, JsonNull
+[warn]    |
+[warn]    | longer explanation available when compiling with `-explain`
+[warn] -- [E029] Pattern Match Exhaustivity Warning: C:\Users\mattt\Documents\Dissertation\Grain\src\main\scala\Operations.scala:23:4 
+[warn] 23 |    op match
+[warn]    |    ^^
+[warn]    |    match may not be exhaustive.
+[warn]    |
+[warn]    |    It would fail on pattern case: Abs
+[warn]    |
+[warn]    | longer explanation available when compiling with `-explain`
+[warn] -- [E029] Pattern Match Exhaustivity Warning: C:\Users\mattt\Documents\Dissertation\Grain\src\main\scala\Parser\ExpressionParser.scala:371:4 
+[warn] 371 |    unary match
+[warn]     |    ^^^^^
+[warn]     |    match may not be exhaustive.
+[warn]     |
+[warn]     |    It would fail on pattern case: Abs
+[warn]     |
+[warn]     | longer explanation available when compiling with `-explain`
+[warn] -- [E029] Pattern Match Exhaustivity Warning: C:\Users\mattt\Documents\Dissertation\Grain\src\main\scala\TreeWalker\ExpressionTranslator.scala:200:4 
+[warn] 200 |    address match
+[warn]     |    ^^^^^^^
+[warn]     |    match may not be exhaustive.
+[warn]     |
+[warn]     |    It would fail on pattern case: TreeWalker.DirectLabel(_)
+[warn]     |
+[warn]     | longer explanation available when compiling with `-explain`
+[warn] -- [E029] Pattern Match Exhaustivity Warning: C:\Users\mattt\Documents\Dissertation\Grain\src\main\scala\TreeWalker\ExpressionTranslator.scala:229:4 
+[warn] 229 |    address match
+[warn]     |    ^^^^^^^
+[warn]     |    match may not be exhaustive.
+[warn]     |
+[warn]     |    It would fail on pattern case: TreeWalker.DirectLabel(_)
+[warn]     |
+[warn]     | longer explanation available when compiling with `-explain`
+[warn] -- [E029] Pattern Match Exhaustivity Warning: C:\Users\mattt\Documents\Dissertation\Grain\src\main\scala\TreeWalker\ExpressionTranslator.scala:508:23 
+[warn] 508 |        val afterArg = op match
+[warn]     |                       ^^
+[warn]     |                       match may not be exhaustive.
+[warn]     |
+[warn]     |                       It would fail on pattern case: Abs
+[warn]     |
+[warn]     | longer explanation available when compiling with `-explain`
+[warn] -- [E121] Pattern Match Warning: C:\Users\mattt\Documents\Dissertation\Grain\src\main\scala\TreeWalker\Optimise.scala:60:15 
+[warn] 60 |          case _ => Result(instructions.head :: Nil, instructions.tail)
+[warn]    |               ^
+[warn]    |Unreachable case except for null (if this is intentional, consider writing case null => instead).
+[warn] -- [E029] Pattern Match Exhaustivity Warning: C:\Users\mattt\Documents\Dissertation\Grain\src\main\scala\TreeWalker\Translator.scala:18:4 
+[warn] 18 |    address match
+[warn]    |    ^^^^^^^
+[warn]    |    match may not be exhaustive.
+[warn]    |
+[warn]    |    It would fail on pattern case: TreeWalker.DirectLabel(_)
+[warn]    |
+[warn]    | longer explanation available when compiling with `-explain`
+[warn] -- [E029] Pattern Match Exhaustivity Warning: C:\Users\mattt\Documents\Dissertation\Grain\src\main\scala\Utility\types.scala:102:2 
+[warn] 102 |  dataType match
+[warn]     |  ^^^^^^^^
+[warn]     |match may not be exhaustive.
+[warn]     |
+[warn]     |It would fail on pattern case: Utility.SpriteType(), Utility.BitdepthType(), Utility.StringLiteral()
+[warn]     |
+[warn]     | longer explanation available when compiling with `-explain`
+[warn] 9 warnings found
+[info] done compiling
+[success] Total time: 47 s, completed 20 Apr 2023, 23:46:03
+[debug] > Exec(idea-shell, None, None)
+[debug] > Exec(, None, None)
+[debug] > Exec(idea-shell, None, None)

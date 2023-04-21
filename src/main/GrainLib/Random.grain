@@ -1,10 +1,10 @@
-func setSeed(value: word) asm{
+func setSeed(value: word) mmio asm{
     "lda 4, s"
     "sta $A"
     "rtl"
 }
 
-func seedWithInput() asm{
+func seedWithInput() mmio asm{
     "lda $4219"
     "asl"
     "asl"
@@ -14,24 +14,24 @@ func seedWithInput() asm{
     "rtl"
 }
 
-func lastRandom():word asm{
+func lastRandom():word mmio asm{
     "lda $A"
     "rtl"
 }
 
-func randomBool():bool asm{
+func randomBool():bool mmio asm{
     "jsl func_random"
     "and #1"
     "rtl"
 }
 
-func randomByte(): word asm{
+func randomByte(): word mmio asm{
     "jsl func_random"
     "and #$FF"
     "rtl"
 }
 
-func random():word asm{
+func random():word mmio asm{
     "sep #$30"
 
     "lda $B"

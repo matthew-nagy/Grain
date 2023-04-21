@@ -109,7 +109,7 @@ func initSnake(){
     setBackgroundAddressAndSize(1, 2, 0)
 }
 
-func secondarySetup(){
+func secondarySetup()mmio {
     initSnake()
     lastFruit.x = -1
     lastFruit.y = -1
@@ -117,7 +117,7 @@ func secondarySetup(){
     sendDataToBackground2()
 }
 
-func setup(){
+func setup() mmio{
     setScreenDisabledAndBrightness(true, 0)
     dmaGraphicsToVRam(backgroundSprites, bankof(backgroundSprites), sizeof(backgroundSprites))
     dmaToCGRam(snakePalette, bankof(snakePalette), 64)
@@ -220,11 +220,15 @@ func main(){
             frame()
         }
 
-        secondarySetup()
+        //TODO catch in the parser if secondarySetup wasn't mmio. Can't call a non MMIO one from inside MMIO.
+        //Should also look into mvp command for array copying
+        mmio{
+            secondarySetup()
+        }
         gameRunning = true
     }
 }
 
-func VBlank(){
+func VBlank() mmio {
     sendDataToBackground2()
 }

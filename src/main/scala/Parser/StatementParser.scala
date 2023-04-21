@@ -21,7 +21,10 @@ object StatementParser {
     returnTypeOrError {
       val statement= tokenBuffer.peekType match
         case TokenType.Assembly => parseAssembly(scope, tokenBuffer)
-        case TokenType.LeftBrace => parseBlock(scope, tokenBuffer)
+        case TokenType.MMIO =>
+          tokenBuffer.advance()
+          parseBlock(scope, tokenBuffer, true)
+        case TokenType.LeftBrace => parseBlock(scope, tokenBuffer, false)
         case TokenType.For => parseFor(scope, tokenBuffer)
         case TokenType.If => parseIf(scope, tokenBuffer)
         case TokenType.Return => parseReturn(scope, tokenBuffer)
@@ -48,16 +51,16 @@ object StatementParser {
     Stmt.Assembly(assemblyContent.toList)
   }
 
-  def parseBlock(scope: Scope, tokenBuffer: TokenBuffer): Stmt.Block = {
+  def parseBlock(scope: Scope, tokenBuffer: TokenBuffer, definedAsMMIO: Boolean): Stmt.Block = {
     tokenBuffer.matchType(TokenType.LeftBrace)
     val stmtBuffer = ListBuffer.empty[Stmt.Statement]
-    val blockScope = scope.newChild()
+    val blockScope = scope.newChild(definedAsMMIO)
     while(tokenBuffer.peekType != TokenType.RightBrace){
       stmtBuffer.append(parseOrThrow(blockScope, tokenBuffer))
     }
     tokenBuffer.matchType(TokenType.RightBrace)
 
-    val blockStmt = Stmt.Block(stmtBuffer.toList)
+    val blockStmt = Stmt.Block(stmtBuffer.toList, definedAsMMIO)
     scope.linkStatementWithScope(blockStmt, blockScope)
     blockStmt
   }
@@ -66,7 +69,7 @@ object StatementParser {
     Stmt.Expression(ExpressionParser.parseOrThrow(scope, tokenBuffer))
 
   private def parseFor(scope: Scope, tokenBuffer: TokenBuffer): Stmt.For = {
-    val forScope = scope.newChild()
+    val forScope = scope.newChild(false)
     val forLine = tokenBuffer.matchType(TokenType.For).lineNumber
 
     val startStmt = if(tokenBuffer.peekType == TokenType.Semicolon) None
@@ -88,7 +91,7 @@ object StatementParser {
 
   def parseElse(scope: Scope, tokenBuffer: TokenBuffer): Stmt.Else = {
     tokenBuffer.matchType(TokenType.Else)
-    val elseScope = scope.newChild()
+    val elseScope = scope.newChild(false)
     val elseBody = parseOrThrow(elseScope, tokenBuffer)
     val elseStmt = Stmt.Else(elseBody)
 
@@ -96,7 +99,7 @@ object StatementParser {
     elseStmt
   }
   def parseIf(scope: Scope, tokenBuffer: TokenBuffer): Stmt.If = {
-    val ifScope = scope.newChild()
+    val ifScope = scope.newChild(false)
     val ifLine = tokenBuffer.matchType(TokenType.If).lineNumber
     val condition = ExpressionParser.parseOrThrow(ifScope, tokenBuffer)
     tokenBuffer.matchType(TokenType.Then)
@@ -145,7 +148,7 @@ object StatementParser {
 
   def parseWhile(scope: Scope, tokenBuffer: TokenBuffer): Stmt.While = {
     val whileLine = tokenBuffer.matchType(TokenType.While).lineNumber
-    val whileScope = scope.newChild()
+    val whileScope = scope.newChild(false)
     val condition = ExpressionParser.parseOrThrow(whileScope, tokenBuffer)
     tokenBuffer.matchType(TokenType.Do)
     val body = parseOrThrow(whileScope, tokenBuffer)
@@ -159,7 +162,7 @@ object StatementParser {
     import Stmt.*
     statement match
       case Assembly(assembly) =>
-      case Block(statements) =>
+      case Block(statements, _) =>
         statements.forall(stmt => {
           typeCheck(filename, stmt, scope.getChildOrThis(statement))
           true
@@ -181,7 +184,7 @@ object StatementParser {
           true
         })
         typeCheck(filename, body, forScope)
-      case FunctionDecl(_, _, body) => typeCheck(filename, body, scope.getChildOrThis(statement))
+      case FunctionDecl(_, _, body, _) => typeCheck(filename, body, scope.getChildOrThis(statement))
       case Else(_) => throw Exception("Else branch shouldn't be triggered; handle in the if")
       case If(condition, body, elseBranch, _, _) =>
         ExpressionParser.typeCheck(filename, condition, scope)

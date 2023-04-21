@@ -1,4 +1,4 @@
-func enableInputAndNMI()asm{
+func enableInputAndNMI()mmio asm{
     "sep #$20"
     "lda #%10000001"
     "sta $4200"
@@ -6,7 +6,7 @@ func enableInputAndNMI()asm{
     "rtl"
 }
 
-func setMosaicEffect(effectSize: word, effectedBackgroundBitmask: word) asm{
+func setMosaicEffect(effectSize: word, effectedBackgroundBitmask: word) mmio asm{
     "sep #$20"
 
     "lda 6, s"
@@ -21,7 +21,7 @@ func setMosaicEffect(effectSize: word, effectedBackgroundBitmask: word) asm{
     "rtl"
 }
 
-func setScreenDisabledAndBrightness(screenDisabled: bool, brightness: word)asm{
+func setScreenDisabledAndBrightness(screenDisabled: bool, brightness: word)mmio asm{
     "lda 6, s"
     "xba"
     "lsr"
@@ -47,7 +47,7 @@ class Input{
     Select: bool
 }
 
-func getPlayerInput(playerNumber: word): word asm{
+func getPlayerInput(playerNumber: word): word mmio asm{
     "lda 4, s"
     "asl"
     "tax"
@@ -79,13 +79,14 @@ func updatePlayerInput(inputPtr: Input ptr, playerNumber: word){
     if (inputFlags & 0b0000000000010000) > 0 then @inputPtr.R = true
 }
 
-func frame() asm{
+//This means that if a frame is complete, VBlank always enters in as MMIO
+func frame() mmio asm{
     "inc 6"
     "wai"
     "rtl"
 }
 
-func enableScreens(bg1: bool, bg2: bool, bg3: bool, bg4: bool, obj: bool) asm{
+func enableScreens(bg1: bool, bg2: bool, bg3: bool, bg4: bool, obj: bool) mmio asm{
     "sep #$20"
 
     "lda 4, s"
@@ -104,7 +105,7 @@ func enableScreens(bg1: bool, bg2: bool, bg3: bool, bg4: bool, obj: bool) asm{
 }
 
 //Slightly faster, if lower level. ---abcde a: Obj  b: Bg1  c: Bg2  d: Bg3  e: Bg4
-func enableScreensFromMask(enableMask: word) asm{
+func enableScreensFromMask(enableMask: word) mmio asm{
     "sep #$20"
 
     "lda 4, s"
