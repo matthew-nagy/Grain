@@ -212,21 +212,28 @@ object ExpressionParser {
     }
     var expType = scope.getTypeOf(expr)
 
-    while(tokenBuffer.peek.tokenType match{
+    while(tokenBuffer.peek.tokenType match {
       case TokenType.LeftParen =>
-        if(!expType.isInstanceOf[Utility.FunctionPtr]) {
-          if(tokenBuffer.peek.lineNumber != callStartToken.lineNumber){
-            false//It was on a different line so probably the start of the next statement/expression
-          }
-          else {
-            throw Errors.CannotCallType(tokenBuffer.getFilename, tokenBuffer.peek.lineNumber, expType)
-          }
-        }
-        else {
-          callStartToken = tokenBuffer.advance()
-          expr = finishCall(expr, scope, tokenBuffer)
-          true
-        }
+        expType match
+          case funcType: Utility.FunctionPtr =>
+            //TODO tighten this down
+            //When you compile a function, you can check if it is "mmio safe", ie, doesn't index an argument pointer,
+            //doesn't call mmio functions, etc
+            //From inside an mmio scope, you can only call mmio, and mmio safe functions
+            //But not now because it is 10 days before subission and I have a report and ENTIRE OTHER COURSEWORK to do
+//            if (scope.mmio && !funcType.mmio){
+//              throw Errors.CannotCallNonMMIOFromMMIO(callStartToken.lineNumber, expr.toString, tokenBuffer.getFilename)
+//            }
+            callStartToken = tokenBuffer.advance()
+            expr = finishCall(expr, scope, tokenBuffer)
+            true
+          case _ =>
+            if(tokenBuffer.peek.lineNumber != callStartToken.lineNumber){
+              false//It was on a different line so probably the start of the next statement/expression
+            }
+            else {
+              throw Errors.CannotCallType(tokenBuffer.getFilename, tokenBuffer.peek.lineNumber, expType)
+            }
       case TokenType.Dot =>
         callStartToken = tokenBuffer.advance()
         val name = tokenBuffer.matchType(TokenType.Identifier)
@@ -443,7 +450,7 @@ object ExpressionParser {
       case FunctionCall(function, arguments) =>
         val functionType = scope.getTypeOf(function)
         functionType match
-          case Utility.FunctionPtr(argTypes, _) =>
+          case Utility.FunctionPtr(argTypes, _, _) =>
             argTypes.zip(arguments.map(scope.getTypeOf)).forall(
               (expectedT, givenT) => {
                 if (!Utility.typeEquivilent(expectedT, givenT)) {

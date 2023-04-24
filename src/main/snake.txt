@@ -109,7 +109,7 @@ func initSnake(){
     setBackgroundAddressAndSize(1, 2, 0)
 }
 
-func secondarySetup()mmio {
+func secondarySetup() {
     initSnake()
     lastFruit.x = -1
     lastFruit.y = -1
@@ -117,7 +117,7 @@ func secondarySetup()mmio {
     sendDataToBackground2()
 }
 
-func setup() mmio{
+func setup() {
     setScreenDisabledAndBrightness(true, 0)
     dmaGraphicsToVRam(backgroundSprites, bankof(backgroundSprites), sizeof(backgroundSprites))
     dmaToCGRam(snakePalette, bankof(snakePalette), 64)
@@ -208,7 +208,12 @@ func addGameOverText(){
 }
 
 func main(){
-    setSeed(0x92A6)//Certainly not a homestuck reference
+
+    testFlag1: word = 0x6969
+    testFlag2: word = 0x1234
+    testFlag3: word = 0x6969
+
+    setSeed(0x92A6)
     setup()
     while true do{
         while gameRunning do updateFrame()
@@ -220,15 +225,12 @@ func main(){
             frame()
         }
 
-        //TODO catch in the parser if secondarySetup wasn't mmio. Can't call a non MMIO one from inside MMIO.
-        //Should also look into mvp command for array copying
-        mmio{
-            secondarySetup()
-        }
+        secondarySetup()
+
         gameRunning = true
     }
 }
 
-func VBlank() mmio {
+func VBlank() {
     sendDataToBackground2()
 }

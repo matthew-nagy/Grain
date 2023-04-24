@@ -1268,29 +1268,39 @@ rtl
 main_function:
 tsx
 phx	;Record stack frame
+tsc
+sec
+sbc #6
+tcs
+lda #26985
+sta 5, s	;Storing the assignment
+lda #4660
+sta 3, s	;Storing the assignment
+lda #26985
+sta 1, s	;Storing the assignment
 lda #37542
 pha
 jsl func_setSeed
 plx	;Dummy pull
 jsl func_setup
-While_l213_f0:
+While_l218_f0:
 lda #1	;Condition: BooleanLiteral(true)
 cmp #1
-bne While_End_l213_f0	;End of condition (BooleanLiteral(true)), either branched if IfFalse or fallen through
-While_l214_f0:
-lda 4526	;Condition: Variable(Token(Identifier, 'gameRunning', 214))
+bne While_End_l218_f0	;End of condition (BooleanLiteral(true)), either branched if IfFalse or fallen through
+While_l219_f0:
+lda 4526	;Condition: Variable(Token(Identifier, 'gameRunning', 219))
 cmp #1
-bne While_End_l214_f0	;End of condition (Variable(Token(Identifier, 'gameRunning', 214))), either branched if IfFalse or fallen through
+bne While_End_l219_f0	;End of condition (Variable(Token(Identifier, 'gameRunning', 219))), either branched if IfFalse or fallen through
 jsl func_updateFrame
-bra While_l214_f0
-While_End_l214_f0:
+bra While_l219_f0
+While_End_l219_f0:
 jsl func_addGameOverText
-While_l218_f0:
-lda 50	;Condition: BinaryOp(Equal,Get(Variable(Token(Identifier, 'playerInput', 218)),Token(Identifier, 'R', 218)),BooleanLiteral(false))
+While_l223_f0:
+lda 50	;Condition: BinaryOp(Equal,Get(Variable(Token(Identifier, 'playerInput', 223)),Token(Identifier, 'R', 223)),BooleanLiteral(false))
 pha
 lda #0
 cmp 1, s
-bne While_End_l218_f0	;End of condition (BinaryOp(Equal,Get(Variable(Token(Identifier, 'playerInput', 218)),Token(Identifier, 'R', 218)),BooleanLiteral(false))), either branched if IfFalse or fallen through
+bne While_End_l223_f0	;End of condition (BinaryOp(Equal,Get(Variable(Token(Identifier, 'playerInput', 223)),Token(Identifier, 'R', 223)),BooleanLiteral(false))), either branched if IfFalse or fallen through
 plx	;Dummy pull
 lda #32
 pha
@@ -1300,15 +1310,15 @@ jsl func_updatePlayerInput
 plx	;Dummy pull
 plx	;Dummy pull
 jsl func_frame
-bra While_l218_f0
-While_End_l218_f0:
+bra While_l223_f0
+While_End_l223_f0:
 plx	;Dummy pull
 jsl func_secondarySetup
 lda #1
 sta 4526	;Storing the assignment
-bra While_l213_f0
-While_End_l213_f0:
-lda 1, s	;Fix stack before return
+bra While_l218_f0
+While_End_l218_f0:
+lda 7, s	;Fix stack before return
 tcs
 stp	;At the end of main
 

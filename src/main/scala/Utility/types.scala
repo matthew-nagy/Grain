@@ -36,7 +36,7 @@ case class Array(of: Type, length: Int) extends PtrType{
   override def toString: String =
     "Array<" ++ typeToRecursionSafeString(of) ++ ">[" ++ length.toString ++ "]"
 }
-case class FunctionPtr(argumentTypes: List[Type], returnType: Type) extends Type{
+case class FunctionPtr(argumentTypes: List[Type], returnType: Type, mmio: Boolean) extends Type{
   private def getArgsAsString: String =
     if(argumentTypes.isEmpty){
       ""
@@ -50,7 +50,7 @@ case class FunctionPtr(argumentTypes: List[Type], returnType: Type) extends Type
   override def toString: String =
     "FunctionPtr(" ++
       getArgsAsString ++
-      "): " ++ typeToRecursionSafeString(returnType)
+      "): " ++ typeToRecursionSafeString(returnType) ++ (if(mmio)""else " MMIO")
 }
 object Struct{
   case class Entry(symbol: Symbol, offset: Int)
@@ -107,7 +107,7 @@ def getTypeSize(dataType: Type):Int = {
     case Ptr(_) => 2
     case Array(of, length) =>
       getTypeSize(of) * length
-    case FunctionPtr(_, _) => 2
+    case FunctionPtr(_, _, _) => 2
     case s @ Struct(_, _, _) => s.size
     case DataBankIndex() => 2
     case Palette() => 256

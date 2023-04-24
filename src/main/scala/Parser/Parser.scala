@@ -94,7 +94,13 @@ def parseFunctionPtr(symbolTable: SymbolTable, tokenBuffer: TokenBuffer): Type =
     parseType(symbolTable, tokenBuffer)
   }
 
-  Utility.FunctionPtr(args.toList, returnType)
+  val mmio = tokenBuffer.peekType match
+    case TokenType.MMIO =>
+      tokenBuffer.advance()
+      true
+    case _ => false
+
+  Utility.FunctionPtr(args.toList, returnType, mmio)
 }
 def parseType(symbolTable: SymbolTable, tokenBuffer: TokenBuffer): Type = {
   val startToken = tokenBuffer.advance()
@@ -187,17 +193,17 @@ object TopLevelParser{
 
     functionScope.setReturnType(returnType)
 
-    val funcSymbol = scope.addSymbol(
-      funcName,
-      Utility.FunctionPtr(arguments.map(_.dataType), returnType),
-      Symbol.FunctionDefinition(tokenBuffer.peekType == TokenType.Assembly),
-      tokenBuffer.getFilename)
-
     val preAsmMMIO = tokenBuffer.peekType match
       case TokenType.MMIO =>
         tokenBuffer.advance()
         true
       case _ => false
+
+    val funcSymbol = scope.addSymbol(
+      funcName,
+      Utility.FunctionPtr(arguments.map(_.dataType), returnType, preAsmMMIO),
+      Symbol.FunctionDefinition(tokenBuffer.peekType == TokenType.Assembly),
+      tokenBuffer.getFilename)
 
     functionScope.executesAsMMIO = preAsmMMIO
 

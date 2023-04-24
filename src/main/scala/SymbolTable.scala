@@ -138,7 +138,7 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
         innerType
       case Expr.FunctionCall(funcExpr, _) =>
         getTypeOf(funcExpr) match
-          case Utility.FunctionPtr(_, rt) => rt
+          case Utility.FunctionPtr(_, rt, _) => rt
           case _ => throw new Exception("It shouldn't be possible that a call expression doesn't call a function")
       case Expr.Get(left, name) =>
         getTypeOf(left) match

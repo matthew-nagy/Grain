@@ -162,4 +162,10 @@ object Errors{
       filename, -1,
       "Unrecognised extension for data '" ++ extension ++ "'. Accepted extensions are" ++ acceptedExtensions.foldLeft("")(_ ++ ", '" ++ _) ++ "'"
     )
+    
+  def CannotCallNonMMIOFromMMIO(lineNumber: Int, nonMMIOFuncName: String, filename: String): SyntaxError =
+    SyntaxError(
+      filename, lineNumber,
+      "Cannot call a non-MMIO function from inside an MMIO scope. Attempted to call non-MMIO function " ++ nonMMIOFuncName
+    )  
 }

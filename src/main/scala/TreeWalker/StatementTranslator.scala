@@ -66,7 +66,8 @@ object StatementTranslator {
           }
         )
         IR.UserAssembly(assembly) :: Nil
-      case Block(statements) =>
+      case Block(statements, _) =>
+        //TODO switch into bank 0 if you need to
         val blockScope = scope.getChild(stmt)
         blockScope.extendStack() :::
         statements.map(translateStatement(_, blockScope)).foldLeft(IRBuffer())(_.append(_)).toList :::

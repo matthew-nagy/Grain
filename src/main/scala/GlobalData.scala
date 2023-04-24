@@ -1,14 +1,18 @@
 package Grain
 
+import Grain.Operation.Binary.Add
+import TreeWalker.*
+
 import scala.language.implicitConversions
 import grapple.json.{Json, JsonInput, JsonObject, JsonValue, jsonValueToString}
 
+import java.io.ObjectInputFilter
 import java.nio.file.Path
 import scala.io.Source
 
 object GlobalData {
   case class GlobalConfig(
-                           globalsStart: Int,
+                           globalsStart: Int, wramTop: String,
                            assemblerPath: String, emulatorPath: String,
                            includePaths: List[String], defaultOptimisations: Boolean,
                            romHeaderPath: String, initPath: String, preSetupCode: List[String]
@@ -19,7 +23,7 @@ object GlobalData {
         jsonVal match{
           case json: JsonObject =>
             GlobalConfig(
-              json.getInt("globals_start"),
+              json.getInt("globals_start"), json.getString("wram_top"),
               json.getString("assembler_path"), json.getString("emulator_path"),
               json.getJsonArray("include_paths").values.map(_.as[String]).toList,
               json.getBoolean("default_optimisations_full"),
@@ -82,6 +86,21 @@ object GlobalData {
     val bankSize = 0x5000 //0x7FFF - the 0x1FFF WRAM mirror
     val generalInstructionSize = 3
     val maxConditionalJumpLength = 128
+
+    //Puts the bank0 sp into x from tempStack, saves bank 7e sp to tempStack, switches to bank 0,
+    //Then puts bank0 sp from x into the stack pointer
+    val switchToBank0: List[IR.Instruction] =
+      IR.Load(Direct(Addresses.tempStack), XReg()) :: IR.TransferToAccumulator(StackPointerReg()) ::
+        IR.Store(Direct(Addresses.tempStack), AReg()) ::
+        IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0), AReg()) :: IR.PushRegister(AReg()) :: IR.PullDataBankRegister() ::
+        IR.SetReg16Bit(RegisterGroup.A) :: IR.TransferXTo(StackPointerReg()) :: Nil
+
+    //Switches to bank 7E, loads what the stack used to be from temp stack, and puts that back in the stack
+    //Then sets temp stack back to 1FFF; where it should be when you start pushing again
+    val exitBank0: List[IR.Instruction] =
+      IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0x7E), AReg()) :: IR.PushRegister(AReg()) :: IR.PullDataBankRegister() ::
+        IR.SetReg16Bit(RegisterGroup.A) :: IR.Load(Direct(Addresses.tempStack), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) ::
+        IR.Load(Immediate(0x1FFF), AReg()) :: IR.Store(Direct(Addresses.tempStack), AReg()) :: Nil
 
     val fileStart: List[String] = List(
       ".include \"" ++ Config.romHeaderPath ++ "\"",

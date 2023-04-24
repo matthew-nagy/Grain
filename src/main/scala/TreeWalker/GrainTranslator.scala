@@ -87,7 +87,7 @@ object GrainTranslator {
         }
       }).foldLeft(List.empty[Instruction])((l1, l2) => l1 ::: l2)
 
-      Output((IR.UserAssembly(GlobalData.snesData.fileStart):: Nil) ::: bankedBuffers ::: dataBankCode, currentBank)
+      Output((IR.UserAssembly(GlobalData.snesData.fileStart):: Nil) ::: bankedBuffers ::: dataBankCode, firstDataBank)
     }
   }
 
@@ -96,7 +96,7 @@ object GrainTranslator {
       case EmptyStatement() => Nothing() :: Nil
       case VariableDecl(assignment) =>
         GlobalsCode(ExpressionTranslator.getFromAccumulator(assignment, TranslatorScope(scope, translatorSymbolTable)).toGetThere) :: Nil
-      case FunctionDecl(funcSymbol, _, body) =>
+      case FunctionDecl(funcSymbol, _, body, _) =>
         val defaultFuncLabel = (if(funcSymbol.name.contains('.'))"method_" else "func_") ++ funcSymbol.name
 
         body match

@@ -1,5 +1,6 @@
 {
   "globals_start": 32,
+  "wram_top": "$7FFF",
   "assembler_path": "snes/WLA/",
   "emulator_path": ".\\snes\\bsnes-plus\\bsnes.exe",
   "include_paths": ["src/main/GrainLib/"],

@@ -195,7 +195,6 @@ object Getting{
   private def useAddressAsIndirectIndexed(address: Address, offset: Int, toGetHere: IRBuffer): (Address, IRBuffer) =
     (DirectIndexed(offset, XReg()), toGetHere.append(IR.Load(address, AReg()) :: IR.TransferToX(AReg()) :: Nil))
 
-
   def offsetAddress(address: Offsetable, offset: Int): (Address, IRBuffer) =
     address match
       case Direct(value) => (Direct(value + offset), IRBuffer())
@@ -205,7 +204,10 @@ object Getting{
       )
       case StackRelative(value) => (StackRelative(value - offset), IRBuffer())
       case StackRelativeIndirectIndexed(value, by) => (StackRelativeIndirectIndexed(value, by), IRBuffer()
-        .append(IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: IR.TransferToAccumulator(by) :: Nil)
+        .append(
+          IR.Load(StackRelativeIndirectIndexed(value, by), AReg()) :: IR.ClearCarry() ::
+            IR.AddCarry(Immediate(offset)) :: IR.TransferToAccumulator(by) :: Nil
+        )
       )
 
   def certainlyOffsetAddress(address: Address, offset: Int): (Address, IRBuffer) =
@@ -248,7 +250,6 @@ object Getting{
       case StackRelativeIndirectIndexed(stackOffset, by) => IR.PushRegister(by) :: IR.Load(StackRelative(stackOffset + 2), AReg()) :: IR.ClearCarry() ::
         IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil
   }
-
 
   def getIndexOfPtr(ptrExpr: Expr.Expr, index: Expr.Expr, scope: TranslatorScope): (Address, IRBuffer) = {
     val (addressOfPtr, codeToGetAddressOfPtr) = getAddressOf(ptrExpr, scope)
@@ -390,6 +391,16 @@ object ExpressionTranslator {
   }
   private def translateFunctionCall(function: Expr.Expr, arguments: List[Expr.Expr], scope: TranslatorScope): AccumulatorLocation = {
     scope.rememberStackLocation()
+
+    //TODO, if MMIO ever becomes a thing, this is where to detect it I guess lmao
+    //If this is not an mmio block, and you are entering an mmio block, do the thing!
+    val callingFunctionType = scope.inner.getTypeOf(function).asInstanceOf[Utility.FunctionPtr]
+    val enteringMMIO = !scope.inner.mmio && callingFunctionType.mmio
+    if(enteringMMIO){
+      //println("Detecting MMIO function into switch" ++ function.toString)
+    }
+
+
     val buffer = IRBuffer().append(
       arguments.map(
         arg => pushArgument(arg, scope)
