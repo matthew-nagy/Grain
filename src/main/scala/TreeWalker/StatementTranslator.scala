@@ -119,16 +119,6 @@ object StatementTranslator {
         val fixDecayIR = ifScope.getFixStackDecay().toList
 
         extendIR ::: conditionIR ::: bodyIR ::: enderAndElseStartIR ::: elseBodyIR ::: endIfIR ::: reduceStackIR ::: fixDecayIR
-        //ifScope.reduceStack() :::
-        //ifScope.getFixStackDecay().toList
-
-
-//        scope.rememberStackLocation()
-//        ifScope.extendStack() :::
-//        getConditionCode(condition, scope, elseStartLabel, BranchType.IfFalse) :::
-//        bodyCode ::: ifEnder :::
-//        (IR.PutLabel(elseStartLabel) :: Nil) ::: elseCode :::
-//        (IR.PutLabel(ifEndLabel) :: Nil) ::: ifScope.reduceStack() ::: scope.getFixStackDecay().toList
 
       case Else(body) =>
         val elseScope = scope.getChild(stmt)

@@ -545,6 +545,14 @@ object ExpressionTranslator {
                 buffer.append(IR.ShiftRight(AReg(), value))
               case _ =>
                 buffer.append(getRegisterShifts(left, right, IR.ShiftRight(AReg(), 1), scope))
+          case Operation.Binary.Subtract if left == NumericalLiteral(1) =>
+            buffer.append(getFromAccumulator(right, scope).toGetThere.append(IR.DecrementReg(AReg())))
+
+          case Operation.Binary.Add if left == NumericalLiteral(1) =>
+            buffer.append(getFromAccumulator(right, scope).toGetThere.append(IR.IncrementReg(AReg())))
+
+          case Operation.Binary.Add if right == NumericalLiteral(1) =>
+            buffer.append(getFromAccumulator(left, scope).toGetThere.append(IR.IncrementReg(AReg())))
           case x if Operation.Groups.RelationalTokens.contains(x) =>
             scope.rememberStackLocation()
             val conditionCode = StatementTranslator.getConditionCode(expr, scope, Label("++"), StatementTranslator.BranchType.IfFalse, 0)

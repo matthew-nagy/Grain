@@ -38,7 +38,11 @@ object Optimise {
       case IR.PopDummyValue(_) :: IR.PushRegister(AReg()) :: remaining =>
         Result(IR.Store(StackRelative(2), AReg()) :: Nil, remaining)
       case IR.PushDummyValue(_) :: IR.Load(loadOp, AReg()) :: IR.Store(StackRelative(2), AReg()) :: remaining =>
-        Result(IR.Load(loadOp, AReg()) :: IR.PushRegister(AReg()) :: Nil, remaining)
+        val loadInstruction = loadOp match
+          case StackRelative(offset) => IR.Load(StackRelative(offset - 1), AReg())
+          case StackRelativeIndirectIndexed(offset, YReg()) => IR.Load(StackRelativeIndirectIndexed(offset-2, YReg()), AReg())
+          case _ => IR.Load(loadOp, AReg())
+        Result(loadInstruction :: IR.PushRegister(AReg()) :: Nil, remaining)
       case IR.PushDummyValue(_) :: IR.JumpLongSaveReturn(label) :: IR.Store(StackRelative(2), AReg()) :: remaining =>
         Result(IR.JumpLongSaveReturn(label) :: IR.PushRegister(AReg()) :: Nil, remaining)
       case IR.Load(StackRelative(2), reg1) :: PushRegister(reg2) :: IR.JumpLongSaveReturn(func) ::
@@ -163,6 +167,13 @@ object Optimise {
         Result(IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0xFF00)) :: (if (num == 8) Nil else IR.ShiftLeft(AReg(), num - 8) :: Nil), remaining)
       case IR.ShiftRight(AReg(), num) :: remaining if num >= 8=>
         Result(IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0x00FF)) :: (if (num == 8) Nil else IR.ShiftRight(AReg(), num - 8) :: Nil), remaining)
+
+      case IR.Load(Immediate(0), reg1) :: IR.Compare(someAddress, reg2) :: IR.BranchIfNotEqual(label) :: next :: remaining
+        if reg1 == reg2 && someAddress.isInstanceOf[Address] && !next.isInstanceOf[IR.Branch] =>
+        Result(IR.Load(someAddress, reg1) :: IR.BranchIfNotEqual(label) :: Nil, next :: remaining)
+      case IR.Load(someAddress, reg1) :: IR.Compare(Immediate(0), reg2) :: IR.BranchIfNotEqual(label) :: next :: remaining
+        if reg1 == reg2 && someAddress.isInstanceOf[Address] && !next.isInstanceOf[IR.Branch] =>
+        Result(IR.Load(someAddress, reg1) :: IR.BranchIfNotEqual(label) :: Nil, next :: remaining)
       case _ => Result(instructions.head :: Nil, instructions.tail)
     Optimise.hardwareQuirks(next.remaining, alreadyOptimised ::: next.optimisedFragment)
   }

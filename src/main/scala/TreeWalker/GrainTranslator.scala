@@ -115,7 +115,8 @@ object GrainTranslator {
                 IR.PushProcessorStatus() :: Nil ::: VBlankReturnIfFrameIsUnfinished ::: IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0x80), AReg()) :: IR.Store(Direct(0x2100), AReg()) :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil, "VBlank")
               case _ => (IR.PutLabel(Label(defaultFuncLabel)) :: Nil, defaultFuncLabel)
 
-            val saveStack = IR.TransferToX(StackPointerReg()) :: IR.PushRegister(XReg()).addComment("Record stack frame") :: Nil
+            val saveStack =
+              IR.TransferToX(StackPointerReg()) :: IR.PushRegister(XReg()).addComment("Record stack frame") :: Nil
 
             val prepareStack = tFuncScope.extendStack()
 
@@ -160,7 +161,8 @@ object GrainTranslator {
     var filename = "src/main/"
     //filename += "array2d.txt"
     //filename += "fragment.txt"
-    filename += "snake.txt"
+    //filename += "snake.txt"
+    filename += "Ackermann.grain"
 
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename, 0)
     //val tokenBuffer = Parser.TokenBuffer(Scanner.scanText("src/main/GrainLib/Random.grain"))

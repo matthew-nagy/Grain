@@ -6,8 +6,7 @@ import Utility.{Errors, Struct, SyntaxError, TokenType}
 
 object ExpressionParser {
 
-  def apply(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr | SyntaxError =
-    parseExpression(scope, tokenBuffer)
+  def apply(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr | SyntaxError = parseExpression(scope, tokenBuffer)
 
   def parseOrThrow(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr =
     parseExpression(scope, tokenBuffer) match
@@ -15,34 +14,34 @@ object ExpressionParser {
       case expr: Expr.Expr => expr
 
   //Because of how the translator works, some ops need the branches the other way round
-  private def swapArithmeticBranches(expr: Expr.Expr): Expr.Expr = {
-    expr match
-      case Expr.Assign(name, arg) => Expr.Assign(name, swapArithmeticBranches(arg))
-      case Expr.UnaryOp(op, arg) => Expr.UnaryOp(op, swapArithmeticBranches(arg))
-      case Expr.BinaryOp(op, left, right) =>
-        if(Operation.Groups.orderImportantOperations.contains(op)) {
-          println("Swapping")
-          println("\t" ++ expr.toString)
-          println("to")
-          println("\t" ++ Expr.BinaryOp(op, right, left).toString)
-          Expr.BinaryOp(op, right, left)
-        } else expr
-      case Expr.Indirection(expr) => Expr.Indirection(swapArithmeticBranches(expr))
-      case Expr.FunctionCall(function, arguments) =>
-        Expr.FunctionCall(swapArithmeticBranches(function), arguments.map(swapArithmeticBranches))
-      case Expr.Get(left, name) => Expr.Get(swapArithmeticBranches(left), name)
-      case Expr.GetAddress(expr) => Expr.GetAddress(swapArithmeticBranches(expr))
-      case Expr.GetIndex(of, by) => Expr.GetIndex(swapArithmeticBranches(of), swapArithmeticBranches(by))
-      case Expr.SetIndex(of, to) => Expr.SetIndex(swapArithmeticBranches(of), swapArithmeticBranches(to))
-      case Expr.Grouping(internalExpr) => Expr.Grouping(swapArithmeticBranches(internalExpr))
-      case _ => expr
-  }
+//  def swapArithmeticBranches(expr: Expr.Expr): Expr.Expr = {
+//    expr match
+//      case Expr.Assign(name, arg) => Expr.Assign(name, swapArithmeticBranches(arg))
+//      case Expr.UnaryOp(op, arg) => Expr.UnaryOp(op, swapArithmeticBranches(arg))
+//      case Expr.BinaryOp(op, left, right) =>
+//        if(Operation.Groups.orderImportantOperations.contains(op)) {
+//          println("Swapping")
+//          println("\t" ++ expr.toString)
+//          println("to")
+//          println("\t" ++ Expr.BinaryOp(op, right, left).toString)
+//          Expr.BinaryOp(op, swapArithmeticBranches(right), swapArithmeticBranches(left))
+//        } else Expr.BinaryOp(op, swapArithmeticBranches(left), swapArithmeticBranches(right))
+//      case Expr.Indirection(expr) => Expr.Indirection(swapArithmeticBranches(expr))
+//      case Expr.FunctionCall(function, arguments) =>
+//        Expr.FunctionCall(swapArithmeticBranches(function), arguments.map(swapArithmeticBranches))
+//      case Expr.Get(left, name) => Expr.Get(swapArithmeticBranches(left), name)
+//      case Expr.GetAddress(expr) => Expr.GetAddress(swapArithmeticBranches(expr))
+//      case Expr.GetIndex(of, by) => Expr.GetIndex(swapArithmeticBranches(of), swapArithmeticBranches(by))
+//      case Expr.SetIndex(of, to) => Expr.SetIndex(swapArithmeticBranches(of), swapArithmeticBranches(to))
+//      case Expr.Grouping(internalExpr) => Expr.Grouping(swapArithmeticBranches(internalExpr))
+//      case _ => expr
+//  }
 
 
   private def parseExpression(scope: Scope, tokenBuffer: TokenBuffer): Expr.Expr | SyntaxError = {
     returnTypeOrError {
-      val expr = parseAssignment(scope, tokenBuffer)
-      swapArithmeticBranches(expr)
+      parseAssignment(scope, tokenBuffer)
+      //swapArithmeticBranches(expr)
     }
   }
 
@@ -135,7 +134,13 @@ object ExpressionParser {
     while(termDict.contains(tokenBuffer.peekType)){
       val tokenType = tokenBuffer.advance().tokenType
       val right = parseFactor(scope, tokenBuffer)
-      expr = Expr.BinaryOp(termDict(tokenType), expr, right)
+      val op = termDict(tokenType)
+      if(Operation.Groups.orderImportantOperations.contains(op)){
+        expr = Expr.BinaryOp(op, right, expr)
+      }
+      else {
+        expr = Expr.BinaryOp(op, expr, right)
+      }
     }
 
     expr
@@ -153,6 +158,9 @@ object ExpressionParser {
         case TokenType.Modulo8 => Operation.Binary.Modulo8Bit
         case _ => throw new Exception("Shouldn't be able to get here")
       val right = parseUnary(scope, tokenBuffer)
+      if(Operation.Groups.orderImportantOperations.contains(op)){
+        return Expr.BinaryOp(op, right, expr)
+      }
       return Expr.BinaryOp(op, expr, right)
     }
     expr

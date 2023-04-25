@@ -10,6 +10,11 @@ class TranslatorSymbolTable{
   val functionLabelPtrs: mutable.Set[String] = mutable.Set.empty[String]
 }
 
+sealed trait ScopeStackUseResult
+case class PushedScopeFrame() extends ScopeStackUseResult
+case class UsesTheStack(amount: Int) extends ScopeStackUseResult
+case class NoStackUse() extends ScopeStackUseResult
+
 class TranslatorScope(private val innerScope: Scope, private val translatorSymbolTable: TranslatorSymbolTable) {
   private var pushesToTheStack = 0
   private val stackFrames = mutable.Stack.empty[Int]
