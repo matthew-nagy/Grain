@@ -9,7 +9,9 @@ object Optimise {
 
   case class Result(optimisedFragment: List[IR.Instruction], remaining: List[IR.Instruction])
 
-  private var sweepDidWord: Boolean = false
+  var subroutineLabels: scala.collection.mutable.Set[String] = scala.collection.mutable.Set.empty[String]
+
+  private var sweepDidWork: Boolean = false
 
   private def getAddressWithoutStackPush(something: Address): Address =
     something match
@@ -181,7 +183,8 @@ object Optimise {
         Result(IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0xFF00)) :: (if (num == 8) Nil else IR.ShiftLeft(AReg(), num - 8) :: Nil), remaining)
       case IR.ShiftRight(AReg(), num) :: remaining if num >= 8=>
         Result(IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0x00FF)) :: (if (num == 8) Nil else IR.ShiftRight(AReg(), num - 8) :: Nil), remaining)
-
+      case IR.Load(Immediate(0), reg) :: IR.Store(Direct(somewhere), reg2) :: remaining if reg == reg2 =>
+        Result(IR.SetZero(Direct(somewhere)) :: Nil, remaining)
       case IR.Load(Immediate(0), reg1) :: IR.Compare(someAddress, reg2) :: IR.BranchIfNotEqual(label) :: next :: remaining
         if reg1 == reg2 && someAddress.isInstanceOf[Address] && !next.isInstanceOf[IR.Branch] =>
         Result(IR.Load(someAddress, reg1) :: IR.BranchIfNotEqual(label) :: Nil, next :: remaining)
@@ -219,24 +222,36 @@ object Optimise {
   def bubbleUpInstructions(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
     val next: Result = instructions match
       case Nil => return alreadyOptimised
-      case IR.PopDummyValue(dummyReg) :: IR.Load(imOrAd, lReg) :: IR.Store(ad, pReg) :: IR.JumpLongSaveReturn(somewhere) :: remaining if lReg == pReg && dummyReg != lReg =>
-        sweepDidWord = true
-        Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), lReg) :: IR.Store(getAddressWithoutStackPush(ad), pReg) :: IR.JumpLongSaveReturn(somewhere) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
-      case IR.PopDummyValue(dummyReg) :: IR.Load(imOrAd, lReg) :: IR.Store(ad, pReg) :: remaining if lReg == pReg && dummyReg != lReg =>
-        sweepDidWord = true
-        Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), lReg) :: IR.Store(getAddressWithoutStackPush(ad), pReg) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
+      case IR.PopDummyValue(dummyReg) :: afterDummey =>
+        afterDummey match
+          case IR.Load(imOrAd, lReg) :: IR.Store(ad, pReg) :: remaining if lReg == pReg && dummyReg != lReg =>
+            sweepDidWork = true
+            Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), lReg) :: IR.Store(getAddressWithoutStackPush(ad), pReg) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
+          case IR.JumpLongSaveReturn(label) :: remaining if subroutineLabels.contains(label.name) =>
+            sweepDidWork = true
+            Result(IR.JumpLongSaveReturn(label) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
+          case IR.Store(ad, pReg) :: remaining if pReg != dummyReg =>
+            sweepDidWork = true
+            Result(IR.Store(getAddressWithAlteredStack(ad, 2), pReg) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
+          case _ => Result(instructions.head :: Nil, instructions.tail)
+
       case IR.ReturnLong() :: next :: remaining if next != IR.Spacing() && !next.isInstanceOf[IR.PutLabel] =>
         Result(IR.ReturnLong() :: Nil, remaining)
-      case IR.PushDummyValue(dummyReg) :: IR.JumpLongSaveReturn(somewhere) :: remaining =>
-        sweepDidWord = true
-        Result(IR.JumpLongSaveReturn(somewhere) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
-      case IR.PushDummyValue(dummyReg) :: arithmetic :: remaining if arithmetic.isInstanceOf[IR.SingleArgArithmetic] =>
-        sweepDidWord = true
-        Result(arithmetic.asInstanceOf[IR.SingleArgArithmetic].bubbled :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
-      case IR.PushDummyValue(dummyReg) :: IR.Store(address, reg) :: remaining =>
-        address match
-          case StackRelative(2) => Result(IR.PushRegister(reg) :: Nil, remaining)
-          case _ => Result(IR.Store(getAddressWithAlteredStack(address, -2), reg) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+
+      case IR.PushDummyValue(dummyReg) :: afterDummy =>
+        afterDummy match
+          case IR.JumpLongSaveReturn(somewhere) :: remaining =>
+            sweepDidWork = true
+            Result(IR.JumpLongSaveReturn(somewhere) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+          case arithmetic :: remaining if arithmetic.isInstanceOf[IR.SingleArgArithmetic] =>
+            sweepDidWork = true
+            Result(arithmetic.asInstanceOf[IR.SingleArgArithmetic].bubbled :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+          case IR.Store(address, reg) :: remaining if reg != dummyReg =>
+            sweepDidWork = true
+            address match
+              case StackRelative(2) => Result(IR.PushRegister(reg) :: Nil, remaining)
+              case _ => Result(IR.Store(getAddressWithAlteredStack(address, -2), reg) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+          case _ => Result(instructions.head :: Nil, instructions.tail)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
 
@@ -283,11 +298,11 @@ object Optimise {
     }
 
 
-    if(result.length == instructions.length && !sweepDidWord){
+    if(result.length == instructions.length && !sweepDidWork){
       secondarySweeps(result)
     }
     else{
-      sweepDidWord = false
+      sweepDidWork = false
       apply(result)
     }
   }
@@ -295,12 +310,15 @@ object Optimise {
   def main(args: Array[String]): Unit = {
     val in: List[IR.Instruction] =
       IR.PopDummyValue(XReg()) :: IR.PopDummyValue(XReg()) ::
-        IR.Load(StackRelative(12), AReg()) :: IR.Store(StackRelative(2), AReg()) ::
-        IR.Load(StackRelative(10), AReg()) :: IR.PushRegister(AReg()) ::
-        IR.JumpLongSaveReturn(Label("func_setTile")) :: Nil
+        IR.PopDummyValue(XReg()) :: IR.JumpLongSaveReturn(Label("joke")) ::
+        IR.Load(Immediate(2272), AReg()) :: IR.PushRegister(AReg()) ::
+        IR.JumpLongSaveReturn(Label("BackgroundColour")) ::
+        Nil
+
+    subroutineLabels.addOne("joke")
 
     println(in)
     println("---")
-    println(Optimise.bubbleUpInstructions(in))
+    println(apply(in))
   }
 }

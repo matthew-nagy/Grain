@@ -96,9 +96,11 @@ object GrainTranslator {
       case EmptyStatement() => Nothing() :: Nil
       case VariableDecl(assignment) =>
         GlobalsCode(ExpressionTranslator.getFromAccumulator(assignment, TranslatorScope(scope, translatorSymbolTable)).toGetThere) :: Nil
-      case FunctionDecl(funcSymbol, _, body, _) =>
+      case FunctionDecl(funcSymbol, args, body, _) =>
         val defaultFuncLabel = (if(funcSymbol.name.contains('.'))"method_" else "func_") ++ funcSymbol.name
-
+        if(args.isEmpty){
+          Optimise.subroutineLabels.addOne(defaultFuncLabel)
+        }
         body match
           case asmBody: Stmt.Assembly =>
             FunctionCode(IRBuffer().append(IR.PutLabel(Label(defaultFuncLabel)) :: StatementTranslator(asmBody, TranslatorScope(scope, translatorSymbolTable)).toList).append(IR.Spacing()), defaultFuncLabel):: Nil
