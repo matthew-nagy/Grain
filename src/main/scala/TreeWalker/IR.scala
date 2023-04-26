@@ -58,6 +58,7 @@ package IR:
       this
     }
   }
+  sealed trait NonRegAltering
   //When compiled, certain of these 'instructions' won't actually take any ROM size, such as comments or labels
   sealed trait ZeroSizeInstruction
   sealed trait LargeSizeInstruction(generalByteSize: Int)
@@ -66,12 +67,22 @@ package IR:
   trait SingleArgArithmetic(var imOrAd: ImmediateOrAddress) extends Arithmetic{
     def getImOrAd: ImmediateOrAddress = imOrAd
     def usesStack: Boolean = imOrAd.isInstanceOf[StackRelative] || imOrAd.isInstanceOf[StackRelativeIndirectIndexed]
-
-    def bubbled: Arithmetic = {
-      imOrAd = getAddressWithAlteredStack(imOrAd, - 2)
-      this
-    }
   }
+
+  def bubbleArithmetic(saa: SingleArgArithmetic, change: Int): Instruction =
+    saa match
+      case AddCarry(StackRelative(offset)) => AddCarry(StackRelative(offset + change))
+      case SubtractCarry(StackRelative(offset)) => SubtractCarry(StackRelative(offset + change))
+      case AND(StackRelative(offset)) => AND(StackRelative(offset + change))
+      case ORA(StackRelative(offset)) => ORA(StackRelative(offset + change))
+      case EOR(StackRelative(offset)) => EOR(StackRelative(offset + change))
+      case AddCarry(StackRelativeIndirectIndexed(offset, reg)) => AddCarry(StackRelativeIndirectIndexed(offset + change, reg))
+      case SubtractCarry(StackRelativeIndirectIndexed(offset, reg)) => SubtractCarry(StackRelativeIndirectIndexed(offset + change, reg))
+      case AND(StackRelativeIndirectIndexed(offset, reg)) => AND(StackRelativeIndirectIndexed(offset + change, reg))
+      case ORA(StackRelativeIndirectIndexed(offset, reg)) => ORA(StackRelativeIndirectIndexed(offset + change, reg))
+      case EOR(StackRelativeIndirectIndexed(offset, reg)) => EOR(StackRelativeIndirectIndexed(offset + change, reg))
+      case _ => saa
+
   sealed trait LoadStore extends Instruction
   sealed trait Transfer extends Instruction
   sealed trait Branch extends Instruction
@@ -95,19 +106,19 @@ package IR:
   case class RotateLeft(op: AccumulatorOrAddress) extends Arithmetic
   case class RotateRight(op: AccumulatorOrAddress) extends Arithmetic
 
-  case class BitTest(op: ImmediateOrAddress) extends Arithmetic
+  case class BitTest(op: ImmediateOrAddress) extends Arithmetic with NonRegAltering
 
   case class DecrementReg(reg: TargetReg) extends Arithmetic
   case class DecrementMemory(address: Address) extends Arithmetic
   case class IncrementReg(reg: TargetReg) extends Arithmetic
-  case class IncrementMemory(address: Address) extends Arithmetic
-  case class NOP() extends Arithmetic
+  case class IncrementMemory(address: Address) extends Arithmetic with NonRegAltering
+  case class NOP() extends Arithmetic with NonRegAltering
   case class ExchangeAccumulatorBytes() extends Arithmetic
 
   //Load Store
   case class Load(op: ImmediateOrAddress, reg: TargetReg) extends LoadStore
-  case class Store(address: Address, reg: TargetReg) extends LoadStore
-  case class SetZero(address: Address) extends LoadStore
+  case class Store(address: Address, reg: TargetReg) extends LoadStore with NonRegAltering
+  case class SetZero(address: Address) extends LoadStore with NonRegAltering
 
   //Transfer
   case class TransferToAccumulator(reg: AnyReg) extends Transfer
@@ -158,7 +169,7 @@ package IR:
   case class ExchangeCarryFlagWithEmulation() extends ProcessorFlags
 
   //Stack Instructions
-  case class PushRegister(reg: TargetReg) extends StackManipulation
+  case class PushRegister(reg: TargetReg) extends StackManipulation with NonRegAltering
   case class PopRegister(reg: TargetReg) extends StackManipulation
   case class PushDirectPageRegister() extends StackManipulation
   case class PullDirectPageRegister() extends StackManipulation

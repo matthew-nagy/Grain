@@ -23,6 +23,19 @@ object StatementTranslator {
     }
     else {
       val uncommentedConditionalCode = expr match
+        case _ if expr.isInstanceOf[Expr.Variable] || expr.isInstanceOf[Expr.Get] || expr.isInstanceOf[Expr.GetIndex] =>
+          val toAcc = toAccumulator(expr, scope)
+          val branch = if (branchType == BranchType.IfTrue) {
+            IR.BranchIfNotEqual(toBranchTo)
+          } else IR.BranchIfEqual(toBranchTo)
+          toAcc ::: (branch :: Nil)
+        //Check for some special cases too!
+        case Expr.UnaryOp(Operation.Unary.BitwiseNot, innerExpr) if innerExpr.isInstanceOf[Expr.Variable] || innerExpr.isInstanceOf[Expr.Get] || innerExpr.isInstanceOf[Expr.GetIndex] =>
+          val toAcc = toAccumulator(innerExpr, scope)
+          val branch = if (branchType == BranchType.IfTrue) {
+            IR.BranchIfEqual(toBranchTo)
+          } else IR.BranchIfNotEqual(toBranchTo)
+          toAcc ::: (branch :: Nil)
         //Check for some special cases too!
         case Expr.BinaryOp(Operation.Binary.Equal, lExpr, zeroOrFalse) if zeroOrFalse == Expr.NumericalLiteral(0) || zeroOrFalse == Expr.BooleanLiteral(false) =>
           val toAcc = toAccumulator(lExpr, scope)

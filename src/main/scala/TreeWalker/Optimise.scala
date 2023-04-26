@@ -4,12 +4,14 @@ import Grain.GlobalData
 import TreeWalker.IR.{Instruction, PushRegister}
 
 import scala.annotation.tailrec
+import scala.collection.immutable.::
+import scala.collection.mutable.ListBuffer
 
 object Optimise {
 
   case class Result(optimisedFragment: List[IR.Instruction], remaining: List[IR.Instruction])
 
-  var subroutineLabels: scala.collection.mutable.Set[String] = scala.collection.mutable.Set.empty[String]
+  var functionArity: scala.collection.mutable.Map[String, Int] = scala.collection.mutable.Map.empty[String, Int]
 
   private var sweepDidWork: Boolean = false
 
@@ -25,7 +27,7 @@ object Optimise {
       case _ => something
 
   //Actions:
-  //  Finds dummy pulls followed by a dummy push, gets rid of them->
+  //  Finds dummy pulls followed by a dummy push, gets rid of them and vice virca->
   //    dummy pushes and pulls just change stack state, so this saves 8 cycles
   //  Finds dummy pulls followed by an AReg push, replaces to a stack relative store ->
   //    pulls and pushes take 4 cycles. Storing to stack takes 4. Therefore this saves 4 cycles each.
@@ -49,6 +51,8 @@ object Optimise {
     val next: Result = instructions match
       case Nil => return alreadyOptimised
       case IR.PopDummyValue(_) :: IR.PushDummyValue(_) :: remaining =>
+        Result(Nil, remaining)
+      case IR.PushDummyValue(_) :: IR.PopDummyValue(_) :: remaining =>
         Result(Nil, remaining)
       case IR.PopDummyValue(_) :: IR.PushRegister(AReg()) :: remaining =>
         Result(IR.Store(StackRelative(2), AReg()) :: Nil, remaining)
@@ -138,8 +142,6 @@ object Optimise {
               case YReg() => IR.TransferYTo(reg2)
             ) :: Nil, remaining)
         }
-      case IR.Load(Immediate(value1), AReg()) :: PushRegister(AReg()) :: IR.Load(Immediate(value2), AReg()) :: remaining if value1 == value2 =>
-        Result(IR.Load(Immediate(value1), AReg()) :: PushRegister(AReg()) :: Nil, remaining)
       case IR.Load(address, AReg()) :: transfer :: IR.Load(DirectIndexed(directOffset, XReg()), AReg()) :: remaining=>
         val validTransfer = transfer match
           case IR.TransferToX(AReg()) => true
@@ -224,28 +226,55 @@ object Optimise {
       case Nil => return alreadyOptimised
       case IR.PopDummyValue(dummyReg) :: afterDummey =>
         afterDummey match
+          case IR.Load(imOrAd, lReg) :: IR.Store(StackRelative(2), pReg) :: IR.JumpLongSaveReturn(arity1Func) :: remaining if lReg == pReg && dummyReg != lReg && functionArity(arity1Func.name) == 1 =>
+            sweepDidWork = true
+            Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), lReg) :: IR.Store(StackRelative(2), pReg) :: IR.JumpLongSaveReturn(arity1Func) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
+          //Auto converts the second argument; will bubble on next pass if arity 2
+          case IR.Load(imOrAd1, lReg1) :: IR.Store(StackRelative(2), pReg1) :: IR.Load(imOrAd2, lReg2) :: IR.PushRegister(pReg2) :: IR.JumpLongSaveReturn(arity2Func) :: remaining if lReg1 == pReg1 && lReg2 == pReg2 && functionArity(arity2Func.name) == 2 =>
+            sweepDidWork = true
+            Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd1), lReg1) :: IR.Store(StackRelative(4), pReg1) :: IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd2), lReg2) :: IR.Store(StackRelative(2), pReg2) :: IR.JumpLongSaveReturn(arity2Func) :: Nil, remaining)
+          case IR.Load(imOrAd1, lReg1) :: IR.Store(StackRelative(4), pReg1) :: IR.Load(imOrAd2, lReg2) :: IR.Store(StackRelative(2), pReg2) :: IR.JumpLongSaveReturn(arity2Func) :: remaining if lReg1 == pReg1 && lReg2 == pReg2 && functionArity(arity2Func.name) == 2 =>
+            sweepDidWork = true
+            Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd1), lReg1) :: IR.Store(StackRelative(4), pReg1) :: IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd2), lReg2) :: IR.Store(StackRelative(2), pReg2) :: IR.JumpLongSaveReturn(arity2Func) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
           case IR.Load(imOrAd, lReg) :: IR.Store(ad, pReg) :: remaining if lReg == pReg && dummyReg != lReg =>
             sweepDidWork = true
             Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), lReg) :: IR.Store(getAddressWithoutStackPush(ad), pReg) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
-          case IR.JumpLongSaveReturn(label) :: remaining if subroutineLabels.contains(label.name) =>
+          case IR.JumpLongSaveReturn(label) :: remaining if functionArity(label.name) == 0 =>
             sweepDidWork = true
             Result(IR.JumpLongSaveReturn(label) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
           case IR.Store(ad, pReg) :: remaining if pReg != dummyReg =>
             sweepDidWork = true
             Result(IR.Store(getAddressWithAlteredStack(ad, 2), pReg) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
+          case arithmetic :: remaining if arithmetic.isInstanceOf[IR.SingleArgArithmetic] =>
+            sweepDidWork = true
+            Result(IR.bubbleArithmetic(arithmetic.asInstanceOf[IR.SingleArgArithmetic], 2) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
           case _ => Result(instructions.head :: Nil, instructions.tail)
 
       case IR.ReturnLong() :: next :: remaining if next != IR.Spacing() && !next.isInstanceOf[IR.PutLabel] =>
         Result(IR.ReturnLong() :: Nil, remaining)
 
+      //Maybe this can be changed to decriments in the seconary sweep
+      case IR.Load(Immediate(smaller), reg1) :: IR.Store(Direct(dA), reg1S) :: IR.Load(Immediate(larger), reg2) :: IR.Store(Direct(dB), reg2S) :: IR.Load(imOrAd, reg3) :: remaining
+        if smaller < larger && reg1 == reg1S && reg2 == reg2S && reg1 == reg2 && reg2 == reg3 && dA != dB=>
+        Result(IR.Load(Immediate(larger), reg1) :: IR.Store(Direct(dB), reg1) :: IR.Load(Immediate(smaller), reg1) :: IR.Store(Direct(dA), reg1) :: Nil,IR.Load(imOrAd, reg3) :: remaining)
+
       case IR.PushDummyValue(dummyReg) :: afterDummy =>
         afterDummy match
+          case IR.JumpLongSaveReturn(subroutine) :: remaining if functionArity(subroutine.name) == 0 =>
+            sweepDidWork = true
+            Result(IR.JumpLongSaveReturn(subroutine) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+          case IR.Load(imOrAd, ar1) :: IR.PushRegister(pr1) :: IR.JumpLongSaveReturn(arity1) :: remaining if ar1 == pr1 && functionArity(arity1.name) == 1 =>
+            sweepDidWork = true
+            Result(IR.Load(getAddressWithAlteredStack(imOrAd, -2), ar1) :: IR.PushRegister(pr1) :: IR.JumpLongSaveReturn(arity1) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+          case IR.Load(imOrAd, ar1) :: IR.PushRegister(pr1) :: IR.Load(imOrAd2, ar2) :: IR.PushRegister(pr2) :: IR.JumpLongSaveReturn(arity2) :: remaining if ar1 == pr1 && ar2 == pr2 && functionArity(arity2.name) == 2 =>
+            sweepDidWork = true
+            Result(IR.Load(getAddressWithAlteredStack(imOrAd, -2), ar1) :: IR.PushRegister(pr1) :: IR.Load(getAddressWithAlteredStack(imOrAd2, -2), ar2) :: IR.PushRegister(pr2) :: IR.JumpLongSaveReturn(arity2) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
           case IR.JumpLongSaveReturn(somewhere) :: remaining =>
             sweepDidWork = true
             Result(IR.JumpLongSaveReturn(somewhere) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
           case arithmetic :: remaining if arithmetic.isInstanceOf[IR.SingleArgArithmetic] =>
             sweepDidWork = true
-            Result(arithmetic.asInstanceOf[IR.SingleArgArithmetic].bubbled :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+            Result(IR.bubbleArithmetic(arithmetic.asInstanceOf[IR.SingleArgArithmetic], -2) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
           case IR.Store(address, reg) :: remaining if reg != dummyReg =>
             sweepDidWork = true
             address match
@@ -266,14 +295,75 @@ object Optimise {
         Result(IR.PopDummyValue(XReg()) :: Nil, remaining)
       case IR.Load(StackRelative(2), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) :: remaining =>
         Result(IR.PopDummyValue(XReg()) :: Nil, remaining)
+      case IR.JumpLongSaveReturn(subroutine) :: IR.PopDummyValue(dReg) :: IR.ReturnLong() :: remaining if functionArity(subroutine.name) == 0 =>
+        Result(IR.PopDummyValue(dReg) :: IR.JumpLongWithoutReturn(subroutine).addComment("Return chain can be removed") :: Nil, remaining)
+      case IR.JumpLongSaveReturn(somewhere) :: IR.ReturnLong() :: remaining =>
+        Result(IR.JumpLongWithoutReturn(somewhere).addComment("Return  chain can be removed") :: Nil, remaining)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
 
     Optimise.removeUnneccesaryDetails(next.remaining, alreadyOptimised ::: next.optimisedFragment)
   }
 
+  def getResultOfRegister1Off(firstPassage: List[IR.Instruction], startingValue: Int, currentReg: TargetReg, remaining: List[IR.Instruction]): Result = {
+    var afterOperations = remaining
+    var lookForRedundency = true
+    val betterOrder = ListBuffer.empty[IR.Instruction].addAll(firstPassage)
+    var currentNumber = startingValue
+    while (lookForRedundency) do {
+      afterOperations match
+        case nonRegAlteringOperation :: IR.Load(Immediate(nextValue), reg) :: otherRemaining if nonRegAlteringOperation.isInstanceOf[IR.NonRegAltering] && reg == currentReg && (nextValue + currentNumber).abs == 1.0 =>
+          afterOperations = otherRemaining
+          if(nextValue == (startingValue - 1)){
+            betterOrder.addAll(nonRegAlteringOperation :: IR.DecrementReg(reg) :: Nil)
+          }
+          else{
+            betterOrder.addAll(nonRegAlteringOperation :: IR.IncrementReg(reg) :: Nil)
+          }
+          currentNumber = nextValue
+        case _ =>
+          lookForRedundency = false
+    }
+    Result(betterOrder.toList, afterOperations)
+  }
+
+  @tailrec
+  def removeRedundentRegisterLoads(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
+    val next: Result = instructions match
+      case Nil => return alreadyOptimised
+      case IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: IR.Load(Immediate(value2), reg2) :: remaining if reg == reg2 && (value - 1) == value2 && nonRegAlteringOperation.isInstanceOf[IR.NonRegAltering] =>
+        getResultOfRegister1Off(IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: IR.DecrementReg(reg) :: Nil, value2, reg, remaining)
+      case IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: IR.Load(Immediate(value2), reg2) :: remaining if reg == reg2 && (value + 1) == value2 && nonRegAlteringOperation.isInstanceOf[IR.NonRegAltering] =>
+        getResultOfRegister1Off(IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: IR.IncrementReg(reg) :: Nil, value2, reg, remaining)
+      case IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: remaining if nonRegAlteringOperation.isInstanceOf[IR.NonRegAltering] =>
+        var afterOperations = remaining
+        var lookForRedundency = true
+        val betterOrder = ListBuffer.empty[IR.Instruction].addAll(IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: Nil)
+        while(lookForRedundency)do{
+          afterOperations match
+            case IR.Load(Immediate(otherValue), otherReg) :: someOp :: otherRemaining if otherValue == value && otherReg == reg =>
+              betterOrder.addOne(someOp)
+              afterOperations = otherRemaining
+              if(!someOp.isInstanceOf[IR.NonRegAltering]){
+                lookForRedundency = false
+              }
+            case _ =>
+              lookForRedundency = false
+        }
+        Result(betterOrder.toList, afterOperations)
+      case _ =>
+        Result(instructions.head :: Nil, instructions.tail)
+
+    Optimise.removeRedundentRegisterLoads(next.remaining, alreadyOptimised ::: next.optimisedFragment)
+  }
+
+  @tailrec
   def secondarySweeps(instructions: List[IR.Instruction]): List[IR.Instruction] = {
-    removeUnneccesaryDetails(instructions)
+    val toReturn = removeRedundentRegisterLoads(removeUnneccesaryDetails(instructions))
+    if(toReturn.length == instructions.length){
+      return toReturn
+    }
+    secondarySweeps(toReturn)
   }
 
   def apply(instructions: List[IR.Instruction]): List[IR.Instruction] = {
@@ -309,16 +399,15 @@ object Optimise {
 
   def main(args: Array[String]): Unit = {
     val in: List[IR.Instruction] =
-      IR.PopDummyValue(XReg()) :: IR.PopDummyValue(XReg()) ::
-        IR.PopDummyValue(XReg()) :: IR.JumpLongSaveReturn(Label("joke")) ::
-        IR.Load(Immediate(2272), AReg()) :: IR.PushRegister(AReg()) ::
-        IR.JumpLongSaveReturn(Label("BackgroundColour")) ::
-        Nil
+      IR.Load(Immediate(1), AReg()) :: IR.PushRegister(AReg()) ::
+        IR.Load(Immediate(1), AReg()) :: IR.PushRegister(AReg()) ::
+        IR.Load(Immediate(1), AReg()) :: IR.PushRegister(AReg()) ::
+        IR.Load(Immediate(1), AReg()) :: IR.Load(StackRelative(2), AReg()) :: Nil
 
-    subroutineLabels.addOne("joke")
+    functionArity.addOne("joke", 2)
 
     println(in)
     println("---")
-    println(apply(in))
+    println(removeRedundentRegisterLoads(in))
   }
 }

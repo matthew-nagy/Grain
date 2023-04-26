@@ -98,9 +98,9 @@ object GrainTranslator {
         GlobalsCode(ExpressionTranslator.getFromAccumulator(assignment, TranslatorScope(scope, translatorSymbolTable)).toGetThere) :: Nil
       case FunctionDecl(funcSymbol, args, body, _) =>
         val defaultFuncLabel = (if(funcSymbol.name.contains('.'))"method_" else "func_") ++ funcSymbol.name
-        if(args.isEmpty){
-          Optimise.subroutineLabels.addOne(defaultFuncLabel)
-        }
+        
+        Optimise.functionArity.addOne(defaultFuncLabel, args.length)
+        
         body match
           case asmBody: Stmt.Assembly =>
             FunctionCode(IRBuffer().append(IR.PutLabel(Label(defaultFuncLabel)) :: StatementTranslator(asmBody, TranslatorScope(scope, translatorSymbolTable)).toList).append(IR.Spacing()), defaultFuncLabel):: Nil

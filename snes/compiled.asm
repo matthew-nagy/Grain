@@ -14,19 +14,19 @@ stz 4
 stz 6
 ;End Assembly
 stz 4512
-lda #2
-sta 4514	;Storing the assignment
-lda #15
-sta 4516	;Storing the assignment
-lda #16
-sta 4518	;Storing the assignment
-lda #17
-sta 4520	;Storing the assignment
-lda #18
-sta 4522	;Storing the assignment
 lda #19
-sta 4524	;Storing the assignment
-lda #1
+sta 4524
+dec A
+sta 4522
+lda #17
+sta 4520
+dec A
+sta 4518
+lda #15
+sta 4516
+lda #2
+sta 4514
+dec A
 sta 4526	;Storing the assignment
 jml main_function
 
@@ -156,13 +156,12 @@ rtl
 func_updatePlayerInput:
 tsx
 phx	;Record stack frame
-phx	;Dummy push
-lda 8, s
+lda 6, s
 pha
 jsl func_getPlayerInput
-sta 3, s
-lda #0
 sta 1, s
+lda #0
+pha
 for_l67_f2:
 lda #12	;Condition: BinaryOp(Less,Variable(Token(Identifier, 'i', 67)),NumericalLiteral(12))
 cmp 1, s
@@ -530,14 +529,12 @@ rtl
 func_isSnakeTile:
 tsx
 phx	;Record stack frame
-phx	;Dummy push
-lda 10, s
+lda 8, s
 pha
-lda 10, s
+lda 8, s
 pha
 jsl func_getTile
-sta 5, s
-plx	;Dummy pull
+sta 3, s
 plx	;Dummy pull
 lda 4520	;Condition: BinaryOp(Equal,Variable(Token(Identifier, 'atTileID', 50)),Variable(Token(Identifier, 'snakeHeadTile', 50)))
 cmp 1, s
@@ -631,8 +628,8 @@ bra +++
 lda #0	;Its false
 +++:	;End Binary check, clear stack beneath
 and 1, s
+ora 3, s
 plx	;Dummy pull
-ora 1, s
 plx	;Dummy pull
 cmp #1
 bne Else_l59_f0	;End of condition (BinaryOp(Or,FunctionCall(Variable(Token(Identifier, 'isSnakeTile', 59)),List(Variable(Token(Identifier, 'x', 59)), Variable(Token(Identifier, 'y', 59)))),BinaryOp(And,BinaryOp(Equal,Variable(Token(Identifier, 'x', 59)),Get(Variable(Token(Identifier, 'lastFruit', 59)),Token(Identifier, 'x', 59))),BinaryOp(Equal,Variable(Token(Identifier, 'y', 59)),Get(Variable(Token(Identifier, 'lastFruit', 59)),Token(Identifier, 'y', 59)))))), either branched if IfFalse or fallen through
@@ -719,13 +716,11 @@ bra for_l78_f0
 for_end_l78_f0:
 lda #20
 sta 2104
-lda #20
 sta 2106
-lda #20
 sta 2108
 lda #11
 sta 3304
-lda #10
+dec A
 sta 3306
 lda #9
 sta 3308
@@ -761,7 +756,7 @@ lda #-1
 sta 4506	;Assigning simple getter
 lda #1
 pha
-lda #2
+inc A
 pha
 lda #0
 pha
@@ -778,12 +773,10 @@ phx	;Record stack frame
 jsl func_initSnake
 lda #-1
 sta 4508	;Assigning simple getter
-lda #-1
 sta 4510	;Assigning simple getter
 jsl func_spawnFruit
-jsl func_sendDataToBackground2
 plx	;Dummy pull
-rtl
+jml func_sendDataToBackground2	;Return chain can be removed
 
 ;---------------
 
@@ -792,7 +785,7 @@ tsx
 phx	;Record stack frame
 lda #1
 pha
-lda #0
+dec A
 pha
 jsl func_setScreenDisabledAndBrightness
 lda #backgroundSprites
@@ -826,19 +819,17 @@ sta 1, s
 jsl func_dmaToCGRam
 jsl func_executeDMA
 lda #2272
-sta 5, s
-plx	;Dummy pull
-plx	;Dummy pull
+sta 1, s
 jsl func_setBackgroundColour
 lda #1024
 sta 1, s
 jsl func_setVRamTarget
 lda #2
+sta 5, s
+dec A
+sta 3, s
+dec A
 sta 1, s
-lda #1
-pha
-lda #0
-pha
 jsl func_setBackgroundAddressAndSize
 lda #tilemap
 sta 5, s
@@ -855,19 +846,15 @@ sta 3, s
 lda #0
 sta 1, s
 pha
-lda #0
 pha
 jsl func_enableScreens
 jsl func_enableInputAndNMI
 lda #0
-sta 9, s
+sta 3, s
 lda #15
-sta 7, s
-plx	;Dummy pull
-plx	;Dummy pull
-plx	;Dummy pull
+sta 1, s
 jsl func_setScreenDisabledAndBrightness
-lda 5, s
+lda 11, s
 tcs
 rtl
 
@@ -877,32 +864,28 @@ func_updatePlayerDirectionalOffset:
 tsx
 phx	;Record stack frame
 lda 32	;Condition: Get(Variable(Token(Identifier, 'playerInput', 134)),Token(Identifier, 'Left', 134))
-cmp #1
-bne Else_l134_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 134)),Token(Identifier, 'Left', 134))), either branched if IfFalse or fallen through
+beq Else_l134_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 134)),Token(Identifier, 'Left', 134))), either branched if IfFalse or fallen through
 lda #-1
 sta 4504	;Assigning simple getter
 stz 4506
 bra If_End_l134_f0
 Else_l134_f0:
 lda 34	;Condition: Get(Variable(Token(Identifier, 'playerInput', 138)),Token(Identifier, 'Right', 138))
-cmp #1
-bne Else_l138_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 138)),Token(Identifier, 'Right', 138))), either branched if IfFalse or fallen through
+beq Else_l138_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 138)),Token(Identifier, 'Right', 138))), either branched if IfFalse or fallen through
 lda #1
 sta 4504	;Assigning simple getter
 stz 4506
 bra If_End_l138_f0
 Else_l138_f0:
 lda 36	;Condition: Get(Variable(Token(Identifier, 'playerInput', 142)),Token(Identifier, 'Up', 142))
-cmp #1
-bne Else_l142_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 142)),Token(Identifier, 'Up', 142))), either branched if IfFalse or fallen through
+beq Else_l142_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 142)),Token(Identifier, 'Up', 142))), either branched if IfFalse or fallen through
 stz 4504
 lda #-1
 sta 4506	;Assigning simple getter
 bra If_End_l142_f0
 Else_l142_f0:
 lda 38	;Condition: Get(Variable(Token(Identifier, 'playerInput', 146)),Token(Identifier, 'Down', 146))
-cmp #1
-bne Else_l146_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 146)),Token(Identifier, 'Down', 146))), either branched if IfFalse or fallen through
+beq Else_l146_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 146)),Token(Identifier, 'Down', 146))), either branched if IfFalse or fallen through
 stz 4504
 lda #1
 sta 4506	;Assigning simple getter
@@ -1009,21 +992,19 @@ bra +++
 ++:
 lda #0	;Its false
 +++:	;End Binary check, clear stack beneath
+and 3, s
 plx	;Dummy pull
-and 1, s
 plx	;Dummy pull
 cmp #1
 beq JMP_not_taken_to_Else_l161_f0	;End of condition (BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(0)),BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(0))),BinaryOp(Less,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(30))),BinaryOp(Less,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(20))),BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 161)),List(Variable(Token(Identifier, 'newX', 161)), Variable(Token(Identifier, 'newY', 161)))),Variable(Token(Identifier, 'snakeBodyTile', 161))))), either branched if IfTrue or fallen through
 jmp Else_l161_f0
 JMP_not_taken_to_Else_l161_f0:
-phx	;Dummy push
-lda 5, s	;Condition: BinaryOp(Equal,FunctionCall(Variable(Token(Identifier, 'getTile', 162)),List(Variable(Token(Identifier, 'newX', 162)), Variable(Token(Identifier, 'newY', 162)))),Variable(Token(Identifier, 'fruitTile', 162)))
+lda 3, s
 pha
-lda 5, s
+lda 3, s
 pha
 jsl func_getTile
-sta 3, s
-plx	;Dummy pull
+sta 1, s
 lda 4524
 cmp 1, s
 bne ++	;End of condition (BinaryOp(Equal,FunctionCall(Variable(Token(Identifier, 'getTile', 162)),List(Variable(Token(Identifier, 'newX', 162)), Variable(Token(Identifier, 'newY', 162)))),Variable(Token(Identifier, 'fruitTile', 162)))), either branched if IfFalse or fallen through
@@ -1171,22 +1152,22 @@ rtl
 func_addGameOverText:
 tsx
 phx	;Record stack frame
-lda #20
-sta 272
-lda #21
-sta 274
-lda #22
-sta 276
-lda #23
-sta 278
-lda #24
-sta 280
-lda #25
-sta 282
-lda #23
-sta 284
 lda #26
 sta 286
+dec A
+sta 282
+lda #24
+sta 280
+dec A
+sta 278
+lda #23
+sta 284
+dec A
+sta 276
+lda #21
+sta 274
+dec A
+sta 272
 plx	;Dummy pull
 rtl
 
@@ -1203,8 +1184,7 @@ plx	;Dummy pull
 While_l203_f0:
 While_l204_f0:
 lda 4526	;Condition: Variable(Token(Identifier, 'gameRunning', 204))
-cmp #1
-bne While_End_l204_f0	;End of condition (Variable(Token(Identifier, 'gameRunning', 204))), either branched if IfFalse or fallen through
+beq While_End_l204_f0	;End of condition (Variable(Token(Identifier, 'gameRunning', 204))), either branched if IfFalse or fallen through
 jsl func_updateFrame
 bra While_l204_f0
 While_End_l204_f0:

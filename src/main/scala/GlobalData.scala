@@ -74,7 +74,7 @@ object GlobalData {
   object optimisationFlags{
     private val optimisations = Config.defaultOptimisations
     val staticOptimiseTree = true
-    val stackPressureOptimisations = false
+    val stackPressureOptimisations = optimisations
     val optimiseStackUsage: Boolean = optimisations
     val optimiseRegisterUsage: Boolean = optimisations
     val optimiseDirectAddresses: Boolean = optimisations
