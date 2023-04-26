@@ -53,7 +53,7 @@ func spawnFruit(){
     x: word = random() & 0x1F
     y: word = random() & 0x1F
 
-    if x >= 30 then x = 10
+    if x >= 30 then x = x - 10
     if y >= 20 then y = y - 16
 
     if isSnakeTile(x, y) or (x == lastFruit.x and y == lastFruit.y) then{
@@ -70,17 +70,6 @@ func sendDataToBackground2(){
     setVRamTarget(0x800)
     dmaArrayToVRam(background as word ptr, 0, 2048)
     executeDMA()
-}
-
-
-func detailBackground1(){
-    textLine: word ptr = background[3][1]@
-    i: word = 0
-    index: word = 3
-    for ; i < 6; i = i + 1 do{
-        textLine[i] = index
-        index = index + 1
-    }
 }
 
 func initSnake(){
@@ -208,10 +197,6 @@ func addGameOverText(){
 }
 
 func main(){
-
-    testFlag1: word = 0x6969
-    testFlag2: word = 0x1234
-    testFlag3: word = 0x6969
 
     setSeed(0x92A6)
     setup()

@@ -35,6 +35,9 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
   private var frameSize = 0
   private val children = Map.empty[Stmt.Statement, Scope]
 
+
+  def printMap = symbolMap.map(println)
+
   def getReturnType: Type = parent.getReturnType
 
   def parent: Scope = parentScope match

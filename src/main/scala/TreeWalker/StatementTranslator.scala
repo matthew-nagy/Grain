@@ -23,6 +23,19 @@ object StatementTranslator {
     }
     else {
       val uncommentedConditionalCode = expr match
+        //Check for some special cases too!
+        case Expr.BinaryOp(Operation.Binary.Equal, lExpr, zeroOrFalse) if zeroOrFalse == Expr.NumericalLiteral(0) || zeroOrFalse == Expr.BooleanLiteral(false) =>
+          val toAcc = toAccumulator(lExpr, scope)
+          val branch = (if(branchType == BranchType.IfTrue){
+            IR.BranchIfEqual(toBranchTo)
+          } else IR.BranchIfNotEqual(toBranchTo)) :: Nil
+          toAcc ::: branch
+        case Expr.BinaryOp(Operation.Binary.Equal, zeroOrFalse, rExpr) if zeroOrFalse == Expr.NumericalLiteral(0) || zeroOrFalse == Expr.BooleanLiteral(false) =>
+          val toAcc = toAccumulator(rExpr, scope)
+          val branch = (if (branchType == BranchType.IfTrue) {
+            IR.BranchIfEqual(toBranchTo)
+          } else IR.BranchIfNotEqual(toBranchTo)) :: Nil
+          toAcc ::: branch
         case Expr.BinaryOp(op, left, right) if Operation.Groups.RelationalTokens.contains(op) =>
           val leftStack = ExpressionTranslator.getFromStack(left, scope)
           val rightToAcc = toAccumulator(right, scope)

@@ -476,6 +476,20 @@ object ExpressionTranslator {
       case _ => throw new Exception("Binary operation not supported yet '" ++ op.toString ++ "' in expression '" ++ expr.toString ++ "'")
   }
 
+  private def getCommutitiveWithLiteral(op: Operation.Binary, left: Expr.Expr, right: Expr.Expr, scope: TranslatorScope): IRBuffer={
+    val (literal, nonLiteral) = right match {
+      case NumericalLiteral(value) => (Immediate(value), left)
+      case _ => (Immediate(left.asInstanceOf[NumericalLiteral].value), right)
+    }
+    val toAc = getFromAccumulator(nonLiteral, scope).toGetThere
+    val rest = op match
+      case Operation.Binary.Add => IR.ClearCarry() :: IR.AddCarry(literal) :: Nil
+      case Operation.Binary.And => IR.AND(literal) :: Nil
+      case Operation.Binary.Or => IR.ORA(literal) :: Nil
+      case Operation.Binary.Xor => IR.EOR(literal) :: Nil
+    toAc.append(rest)
+  }
+
   def getFromAccumulator(expr: Expr.Expr, scope: TranslatorScope): AccumulatorLocation = {
     val result: AccumulatorLocation | StackLocation = expr match
       case Assign(target, arg) =>
@@ -550,9 +564,16 @@ object ExpressionTranslator {
 
           case Operation.Binary.Add if left == NumericalLiteral(1) =>
             buffer.append(getFromAccumulator(right, scope).toGetThere.append(IR.IncrementReg(AReg())))
-
           case Operation.Binary.Add if right == NumericalLiteral(1) =>
             buffer.append(getFromAccumulator(left, scope).toGetThere.append(IR.IncrementReg(AReg())))
+
+          //Binary.Add, Binary.And, Binary.Or, Binary.Xor
+          case op if Operation.Groups.commutative.contains(op) && (right.isInstanceOf[Expr.NumericalLiteral] || left.isInstanceOf[Expr.NumericalLiteral])=>
+            return AccumulatorLocation(getCommutitiveWithLiteral(op, left, right, scope))
+          //Left because it got switched because of the nonsense in the general cases
+          case Operation.Binary.Subtract if left.isInstanceOf[Expr.NumericalLiteral] =>
+            val leftImmediate = Immediate(left.asInstanceOf[NumericalLiteral].value)
+            return AccumulatorLocation(getFromAccumulator(right, scope).toGetThere.append(IR.SetCarry() :: IR.SubtractCarry(leftImmediate) :: Nil))
           case x if Operation.Groups.RelationalTokens.contains(x) =>
             scope.rememberStackLocation()
             val conditionCode = StatementTranslator.getConditionCode(expr, scope, Label("++"), StatementTranslator.BranchType.IfFalse, 0)

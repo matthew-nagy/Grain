@@ -63,20 +63,32 @@ package IR:
   sealed trait LargeSizeInstruction(generalByteSize: Int)
 
   sealed trait Arithmetic extends Instruction
+  trait SingleArgArithmetic(var imOrAd: ImmediateOrAddress) extends Arithmetic{
+    def getImOrAd: ImmediateOrAddress = imOrAd
+    def usesStack: Boolean = imOrAd.isInstanceOf[StackRelative] || imOrAd.isInstanceOf[StackRelativeIndirectIndexed]
+
+    def bubbled: Arithmetic = {
+      imOrAd = getAddressWithAlteredStack(imOrAd, - 2)
+      this
+    }
+  }
   sealed trait LoadStore extends Instruction
   sealed trait Transfer extends Instruction
   sealed trait Branch extends Instruction
+  trait BranchWithLabel(label: Label) extends Branch{
+    def getLabel: Label = label
+  }
   sealed trait JumpCall extends Instruction
   sealed trait Interrupts extends Instruction
   sealed trait ProcessorFlags extends Instruction
   sealed trait StackManipulation extends Instruction
   sealed trait Misc extends Instruction
   //Arithmetic
-  case class AddCarry(op: ImmediateOrAddress) extends Arithmetic
-  case class SubtractCarry(op: ImmediateOrAddress) extends Arithmetic
-  case class AND(op: ImmediateOrAddress) extends Arithmetic
-  case class EOR(op: ImmediateOrAddress) extends Arithmetic
-  case class ORA(op: ImmediateOrAddress) extends Arithmetic
+  case class AddCarry(op: ImmediateOrAddress) extends SingleArgArithmetic(op)
+  case class SubtractCarry(op: ImmediateOrAddress) extends SingleArgArithmetic(op)
+  case class AND(op: ImmediateOrAddress) extends SingleArgArithmetic(op)
+  case class EOR(op: ImmediateOrAddress) extends SingleArgArithmetic(op)
+  case class ORA(op: ImmediateOrAddress) extends SingleArgArithmetic(op)
 
   case class ShiftLeft(op: AccumulatorOrAddress, numberOfTimes: Int) extends Arithmetic
   case class ShiftRight(op: AccumulatorOrAddress, numberOfTimes: Int) extends Arithmetic
@@ -107,16 +119,16 @@ package IR:
 
   //Branch
   case class Compare(op: ImmediateOrAddress, reg: TargetReg) extends Branch
-  case class BranchIfNoCarry(label: Label) extends Branch
-  case class BranchIfCarrySet(label: Label) extends Branch
-  case class BranchIfNotEqual(label: Label) extends Branch
-  case class BranchIfEqual(label: Label) extends Branch
-  case class BranchIfPlus(label: Label) extends Branch
-  case class BranchIfMinus(label: Label) extends Branch
-  case class BranchIfNoOverflow(label: Label) extends Branch
-  case class BranchIfOverflow(label: Label) extends Branch
-  case class BranchShort(label: Label) extends Branch
-  case class BranchLong(label: Label) extends Branch
+  case class BranchIfNoCarry(label: Label) extends BranchWithLabel(label)
+  case class BranchIfCarrySet(label: Label) extends BranchWithLabel(label)
+  case class BranchIfNotEqual(label: Label) extends BranchWithLabel(label)
+  case class BranchIfEqual(label: Label) extends BranchWithLabel(label)
+  case class BranchIfPlus(label: Label) extends BranchWithLabel(label)
+  case class BranchIfMinus(label: Label) extends BranchWithLabel(label)
+  case class BranchIfNoOverflow(label: Label) extends BranchWithLabel(label)
+  case class BranchIfOverflow(label: Label) extends BranchWithLabel(label)
+  case class BranchShort(label: Label) extends BranchWithLabel(label)
+  case class BranchLong(label: Label) extends BranchWithLabel(label)
 
   //Jump and Call
   case class JumpShortWithoutReturn(label: Label) extends JumpCall

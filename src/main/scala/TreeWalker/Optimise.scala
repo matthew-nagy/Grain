@@ -9,6 +9,19 @@ object Optimise {
 
   case class Result(optimisedFragment: List[IR.Instruction], remaining: List[IR.Instruction])
 
+  private var sweepDidWord: Boolean = false
+
+  private def getAddressWithoutStackPush(something: Address): Address =
+    something match
+      case StackRelative(offset) => StackRelative(offset + 2)
+      case StackRelativeIndirectIndexed(offset, reg) => StackRelativeIndirectIndexed(offset + 2, reg)
+      case _ => something
+
+  private def getImmediateOrAddressWithoutStackPush(something: ImmediateOrAddress): ImmediateOrAddress =
+    something match
+      case address: Address => getAddressWithoutStackPush(address)
+      case _ => something
+
   //Actions:
   //  Finds dummy pulls followed by a dummy push, gets rid of them->
   //    dummy pushes and pulls just change stack state, so this saves 8 cycles
@@ -38,11 +51,9 @@ object Optimise {
       case IR.PopDummyValue(_) :: IR.PushRegister(AReg()) :: remaining =>
         Result(IR.Store(StackRelative(2), AReg()) :: Nil, remaining)
       case IR.PushDummyValue(_) :: IR.Load(loadOp, AReg()) :: IR.Store(StackRelative(2), AReg()) :: remaining =>
-        val loadInstruction = loadOp match
-          case StackRelative(offset) => IR.Load(StackRelative(offset - 1), AReg())
-          case StackRelativeIndirectIndexed(offset, YReg()) => IR.Load(StackRelativeIndirectIndexed(offset-2, YReg()), AReg())
-          case _ => IR.Load(loadOp, AReg())
-        Result(loadInstruction :: IR.PushRegister(AReg()) :: Nil, remaining)
+        Result(IR.Load(getImmediateOrAddressWithoutStackPush(loadOp), AReg()) :: IR.PushRegister(AReg()) :: Nil, remaining)
+      case IR.PopDummyValue(_) :: IR.Load(opOrAd, reg) :: IR.PushRegister(reg2) :: remaining if reg == reg2 =>
+        Result(IR.Load(getImmediateOrAddressWithoutStackPush(opOrAd), reg) :: IR.Store(StackRelative(2), reg2) :: Nil, remaining)
       case IR.PushDummyValue(_) :: IR.JumpLongSaveReturn(label) :: IR.Store(StackRelative(2), AReg()) :: remaining =>
         Result(IR.JumpLongSaveReturn(label) :: IR.PushRegister(AReg()) :: Nil, remaining)
       case IR.Load(StackRelative(2), reg1) :: PushRegister(reg2) :: IR.JumpLongSaveReturn(func) ::
@@ -64,6 +75,10 @@ object Optimise {
           case _ => Result(instructions.head :: Nil, instructions.tail)
       case IR.PushRegister(AReg()) :: IR.Load(imOrAd, AReg()) :: IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(_) :: remaining =>
         Result(IR.ClearCarry() :: IR.AddCarry(imOrAd) :: Nil, remaining)
+      case IR.PopDummyValue(_) :: IR.Load(imOrAd, AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) :: remaining =>
+        Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) :: Nil, remaining)
+      case IR.PopDummyValue(_) :: IR.TransferAccumulatorTo(YReg()) :: IR.Load(imOrAd, AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) :: IR.TransferYTo(AReg()) :: remaining =>
+        Result(IR.TransferAccumulatorTo(YReg()) :: IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) :: IR.TransferYTo(AReg()) ::  Nil, remaining)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
     Optimise.stackUsage(next.remaining, alreadyOptimised ::: next.optimisedFragment)
@@ -88,7 +103,6 @@ object Optimise {
         IR.SetCarry() :: IR.SubtractCarry(StackRelative(2)) :: IR.PopDummyValue(_) ::
         IR.Store(Direct(address2), AReg()) :: remaining if x <= 2 && address1 == address2 && reg1 == reg2 =>
         Result((for i <- Range(0, x) yield IR.DecrementMemory(Direct(address1))).toList, remaining)
-
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
 
@@ -174,6 +188,10 @@ object Optimise {
       case IR.Load(someAddress, reg1) :: IR.Compare(Immediate(0), reg2) :: IR.BranchIfNotEqual(label) :: next :: remaining
         if reg1 == reg2 && someAddress.isInstanceOf[Address] && !next.isInstanceOf[IR.Branch] =>
         Result(IR.Load(someAddress, reg1) :: IR.BranchIfNotEqual(label) :: Nil, next :: remaining)
+      case IR.Load(Immediate(1), reg1) :: IR.Compare(Immediate(1), reg2) :: IR.BranchIfEqual(somewhere) :: remaining if reg1 == reg2 =>
+        Result(IR.BranchShort(somewhere) :: Nil, remaining)
+      case IR.Load(Immediate(1), reg1) :: IR.Compare(Immediate(1), reg2) :: IR.BranchIfNotEqual(_) :: remaining if reg1 == reg2 =>
+        Result(Nil, remaining)
       case _ => Result(instructions.head :: Nil, instructions.tail)
     Optimise.hardwareQuirks(next.remaining, alreadyOptimised ::: next.optimisedFragment)
   }
@@ -196,6 +214,53 @@ object Optimise {
         Optimise.transfers(remaining)
       case _ => instructions.head :: Optimise.transfers(instructions.tail)
 
+
+  @tailrec
+  def bubbleUpInstructions(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
+    val next: Result = instructions match
+      case Nil => return alreadyOptimised
+      case IR.PopDummyValue(dummyReg) :: IR.Load(imOrAd, lReg) :: IR.Store(ad, pReg) :: IR.JumpLongSaveReturn(somewhere) :: remaining if lReg == pReg && dummyReg != lReg =>
+        sweepDidWord = true
+        Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), lReg) :: IR.Store(getAddressWithoutStackPush(ad), pReg) :: IR.JumpLongSaveReturn(somewhere) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
+      case IR.PopDummyValue(dummyReg) :: IR.Load(imOrAd, lReg) :: IR.Store(ad, pReg) :: remaining if lReg == pReg && dummyReg != lReg =>
+        sweepDidWord = true
+        Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), lReg) :: IR.Store(getAddressWithoutStackPush(ad), pReg) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
+      case IR.ReturnLong() :: next :: remaining if next != IR.Spacing() && !next.isInstanceOf[IR.PutLabel] =>
+        Result(IR.ReturnLong() :: Nil, remaining)
+      case IR.PushDummyValue(dummyReg) :: IR.JumpLongSaveReturn(somewhere) :: remaining =>
+        sweepDidWord = true
+        Result(IR.JumpLongSaveReturn(somewhere) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+      case IR.PushDummyValue(dummyReg) :: arithmetic :: remaining if arithmetic.isInstanceOf[IR.SingleArgArithmetic] =>
+        sweepDidWord = true
+        Result(arithmetic.asInstanceOf[IR.SingleArgArithmetic].bubbled :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+      case IR.PushDummyValue(dummyReg) :: IR.Store(address, reg) :: remaining =>
+        address match
+          case StackRelative(2) => Result(IR.PushRegister(reg) :: Nil, remaining)
+          case _ => Result(IR.Store(getAddressWithAlteredStack(address, -2), reg) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+      case _ =>
+        Result(instructions.head :: Nil, instructions.tail)
+
+    Optimise.bubbleUpInstructions(next.remaining, alreadyOptimised ::: next.optimisedFragment)
+  }
+
+  @tailrec
+  def removeUnneccesaryDetails(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
+    val next: Result = instructions match
+      case Nil => return alreadyOptimised
+      case IR.TransferAccumulatorTo(YReg()) :: IR.Load(StackRelative(2), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) :: IR.TransferYTo(AReg()) :: remaining =>
+        Result(IR.PopDummyValue(XReg()) :: Nil, remaining)
+      case IR.Load(StackRelative(2), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) :: remaining =>
+        Result(IR.PopDummyValue(XReg()) :: Nil, remaining)
+      case _ =>
+        Result(instructions.head :: Nil, instructions.tail)
+
+    Optimise.removeUnneccesaryDetails(next.remaining, alreadyOptimised ::: next.optimisedFragment)
+  }
+
+  def secondarySweeps(instructions: List[IR.Instruction]): List[IR.Instruction] = {
+    removeUnneccesaryDetails(instructions)
+  }
+
   def apply(instructions: List[IR.Instruction]): List[IR.Instruction] = {
     var result = instructions
     if (GlobalData.optimisationFlags.optimiseRegisterUsage) {
@@ -213,13 +278,29 @@ object Optimise {
     if(GlobalData.optimisationFlags.optimiseHardwareQuirks){
       result = Optimise.hardwareQuirks(result)
     }
+    if (GlobalData.optimisationFlags.optimiseBubbleUp) {
+      result = Optimise.bubbleUpInstructions(result)
+    }
 
 
-    if(result.length == instructions.length){
-      result
+    if(result.length == instructions.length && !sweepDidWord){
+      secondarySweeps(result)
     }
     else{
+      sweepDidWord = false
       apply(result)
     }
+  }
+
+  def main(args: Array[String]): Unit = {
+    val in: List[IR.Instruction] =
+      IR.PopDummyValue(XReg()) :: IR.PopDummyValue(XReg()) ::
+        IR.Load(StackRelative(12), AReg()) :: IR.Store(StackRelative(2), AReg()) ::
+        IR.Load(StackRelative(10), AReg()) :: IR.PushRegister(AReg()) ::
+        IR.JumpLongSaveReturn(Label("func_setTile")) :: Nil
+
+    println(in)
+    println("---")
+    println(Optimise.bubbleUpInstructions(in))
   }
 }

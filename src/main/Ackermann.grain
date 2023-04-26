@@ -70,39 +70,8 @@ func ackermann(m: word, n: word): word{
     return ackermann(m - 1, ackermann(m, n - 1))
 }
 
-func fib(num: word): word{
-    a: word = 0
-    b: word = 1
-    for i: word = 0; i < num; i = i + 1 do{
-        temp: word = b
-        b = a + b
-        a = temp
-    }
-    return b
-}
-
-func delayLama(){
-    for i: word = 0; i < 300; i = i + 1 do frame()
-}
-
-func main(){
-    setup()
-
-    //delayLama()
-
-    //4181
-    //for i : word = 0; i < 1024; i = i + 1 do{
-    //    val: word = fib(23)
-    //    for j: word = 0; j < 20; j = j + 1 do fib(23)
-    //    if val == 46368 then results[i] = correct
-    //    else results[i] = incorrect
-    //    asm{
-    //        "lda #1"
-    //        "sta 6"
-    //    }
-    //}
-
-    for i: word = 0; i < 1024; i = i + 1 do{
+func test_ackermann(){
+     for i: word = 0; i < 1024; i = i + 1 do{
         //results[i] = correct
         val: word = ackermann(3, 3)
         asm{
@@ -115,6 +84,46 @@ func main(){
             "sta 6"
         }
     }
+}
+
+func fib(num: word): word{
+    a: word = 0
+    b: word = 1
+    for i: word = 0; i < num; i = i + 1 do{
+        temp: word = b
+        b = a + b
+        a = temp
+    }
+    return b
+}
+
+func test_fib(){
+    //4181
+    for i : word = 0; i < 1024; i = i + 1 do{
+        val: word = fib(23)
+        asm{
+            "sta 10"
+        }
+        for j: word = 0; j < 20; j = j + 1 do fib(23)
+        if val == 46368 then results[i] = correct
+        else results[i] = incorrect
+        asm{
+            "lda #1"
+            "sta 6"
+        }
+    }
+}
+
+func delayLama(){
+    for i: word = 0; i < 300; i = i + 1 do frame()
+}
+
+func main(){
+    setup()
+
+    //delayLama()
+
+    test_ackermann()
 
     while true do frame()
 }

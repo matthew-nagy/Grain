@@ -81,6 +81,10 @@ package Operation:
       Binary.Less -> Binary.GreaterEqual, Binary.Greater -> Binary.LessEqual, Binary.Equal -> Binary.NotEqual,
       Binary.GreaterEqual -> Binary.Less, Binary.LessEqual -> Binary.Greater, Binary.NotEqual -> Binary.Equal
     )
+
+    val commutative: Set[Binary] = Set(
+      Binary.Add, Binary.And, Binary.Or, Binary.Xor
+    )
   }
 
 

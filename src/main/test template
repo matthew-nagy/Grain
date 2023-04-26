@@ -1,0 +1,59 @@
+load graphics, palette from "ackermann.png"
+
+include "src/main/GrainLib/DMA.grain"
+include "src/main/GrainLib/Hardware.grain"
+include "src/main/GrainLib/Backgrounds.grain"
+
+results: word[1024]
+
+incorrect: word = 1
+correct: word = 2
+
+func setup(){
+    setScreenDisabledAndBrightness(true, 0)
+    dmaGraphicsToVRam(graphics, bankof(graphics), sizeof(graphics))
+    dmaToCGRam(palette, bankof(palette), sizeof(palette))
+    executeDMA()
+
+    setBackgroundAddressAndSize(1, 1, 0)
+
+    enableScreens(true, false, false, false, false)
+    enableInputAndNMI()
+    setScreenDisabledAndBrightness(false, 15)
+
+    for i: word = 0; i < 1024; i = i + 1 do{
+        results[i] = 0
+    }
+}
+
+//Write your function here
+
+func test_ackermann(){
+     for i: word = 0; i < 1024; i = i + 1 do{
+        //results[i] = correct
+        val: word = ackermann(3, 3)
+        asm{
+            "sta 10"
+        }
+        if val == 61 then results[i] = correct
+        else results[i] = incorrect
+        asm{
+            "lda #1"
+            "sta 6"
+        }
+    }
+}
+func main(){
+    setup()
+
+    //test_fib()
+    test_ackermann()
+
+    while true do frame()
+}
+
+func VBlank(){
+    setVRamTarget(0x400)
+    dmaArrayToVRam(results, 0, 2048)
+    executeDMA()
+}
