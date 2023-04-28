@@ -36,6 +36,9 @@ fruitTile: word = 19
 gameRunning: bool = true
 
 func setTile(x: word, y: word, tileID: word){
+    asm{
+        ".Block \"mainCode\""
+    }
     x = x + 1
     y = y + 5
     background[y][x] = tileID
@@ -73,9 +76,9 @@ func sendDataToBackground2(){
 }
 
 func initSnake(){
-    for i: word = 0; i < 1024; i = i + 1 do
+    for i: word = 0; i < 1024; i += 1 do
         (background as word[1024])[i] = emptyTile
-    for i: word = 0; i < 1200; i = i + 1 do
+    for i: word = 0; i < 1200; i += 1 do
         (snakeBuffer as word[1200])[i] = 0
 
     snakeBuffer.x[0] = 20
@@ -218,4 +221,7 @@ func main(){
 
 func VBlank() {
     sendDataToBackground2()
+    asm{
+        ".Endb"
+    }
 }

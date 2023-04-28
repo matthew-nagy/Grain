@@ -356,7 +356,7 @@ object Getting{
 
   def asStruct(varName: Token, scope: TranslatorScope): Utility.Struct =
     scope.inner(varName.lexeme).dataType match
-      case ptr: Utility.Ptr if ptr.to.isInstanceOf[Utility.Struct] => ptr.to.asInstanceOf[Utility.Struct]
+      case ptr: Utility.Ptr if ptr.of.isInstanceOf[Utility.Struct] => ptr.of.asInstanceOf[Utility.Struct]
       case ar: Utility.Array if ar.of.isInstanceOf[Utility.Struct] => ar.of.asInstanceOf[Utility.Struct]
       case st: Utility.Struct => st
       case _ => throw new Exception("Isn't a struct or struct ptr")
@@ -414,9 +414,14 @@ object ExpressionTranslator {
         val functionDefinitionLine = functionSymbol.lineNumber.toString
         val functionLabel = Label("func_" ++ funcToken.lexeme)
         scope.getTranslatorSymbolTable.usedFunctionLabels.addOne(functionLabel.name)
-        AccumulatorLocation(
-          buffer.append(IR.JumpLongSaveReturn(functionLabel))
-        )
+        buffer.append(IR.JumpLongSaveReturn(functionLabel))
+      case Expr.Get(left, name) =>
+        val (address, toGetAddress) = Getting.getAddressOf(left, scope)
+        val pushTHISPtrToStack = toGetAddress.append(Getting.getAddressIntoAcumulator(address)).append(IR.PushRegister(AReg()))
+        val classType = scope.inner.getTypeOf(left).asInstanceOf[Utility.Struct]
+        val methodLabel = Label("method_" ++ classType.name ++ "." ++ name.lexeme)
+        scope.getTranslatorSymbolTable.usedFunctionLabels.addOne(methodLabel.name)
+        buffer.append(pushTHISPtrToStack).append(IR.JumpLongSaveReturn(methodLabel))
       case _ => throw new Exception("Cannot call type at this time")
     buffer.append(scope.getFixStackDecay())
     AccumulatorLocation(buffer)

@@ -217,7 +217,7 @@ class SymbolTable{
     "rom_word" -> ROMWord(),
     "bit_depth" -> Utility.BitdepthType(),
     "data_bank" -> Utility.DataBankIndex(),
-    "tile_data" -> Utility.SpriteType(),
+    "tile_data" -> Utility.GenericSprite(),
     "palette_data" -> Utility.Palette()
   )
 }

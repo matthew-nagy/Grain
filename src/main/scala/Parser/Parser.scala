@@ -150,7 +150,7 @@ object TopLevelParser{
           if tokenBuffer.lookAhead(1).tokenType == TokenType.Colon then
             StatementParser.parseVariableDecl(scope, tokenBuffer, true) :: Nil
           else {
-            println("Not allowed " ++ tokenBuffer.advance().toString ++ " at top level")
+            tokenBuffer.advance()
             Stmt.EmptyStatement() :: Nil
           }
       top
@@ -190,6 +190,10 @@ object TopLevelParser{
         tokenBuffer.advance()
         parseType(scope.symbolTable, tokenBuffer)
       case _ => Utility.Empty()
+
+    if(returnType.isInstanceOf[Utility.Array]){
+      throw Errors.CannotHaveArrayReturnType(tokenBuffer.getFilename, funcName)
+    }
 
     functionScope.setReturnType(returnType)
 
@@ -290,7 +294,7 @@ object TopLevelParser{
     val newSymbol = Symbol.make(
       Token(
         oldDecl.funcSymbol.token.tokenType,
-        className.lexeme ++ "." ++ oldDecl.funcSymbol.token.lexeme,
+        "method_" ++ className.lexeme ++ "." ++ oldDecl.funcSymbol.token.lexeme,
         oldDecl.funcSymbol.token.lineNumber
       ), oldDecl.funcSymbol.dataType, oldDecl.funcSymbol.form)
     Stmt.FunctionDecl(newSymbol, oldDecl.arguments, oldDecl.body, oldDecl.mmio)

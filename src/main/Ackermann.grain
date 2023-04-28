@@ -27,6 +27,44 @@ func setup(){
 }
 
 func aackermann(m: word, n: word): word asm{
+    ".Block \"asmAckermann\""
+    "lda 6, s"
+    "beq mZero"
+    "tax"
+    "dex"
+    "lda 4, s"
+    "beq nZero"
+
+    "phx"
+    "inx"
+    "phx"
+    "dec A"
+    "pha"
+    "jsl func_aackermann"
+    "plx"
+    "sta 1, s"
+    "jsl func_aackermann"
+    "plx"
+    "plx"
+    "rtl"
+
+    "mZero:"
+    "lda 4, s"
+    "inc A"
+    "rtl"
+
+    "nZero:"
+    "phx"
+    "lda #1"
+    "pha"
+    "jsl func_aackermann"
+    "plx"
+    "plx"
+    "rtl"
+    ".Endb"
+}
+
+func aackermann2(m: word, n: word): word asm{
     "lda 6, s"
     "bne nonmzero"
     "lda 4, s"

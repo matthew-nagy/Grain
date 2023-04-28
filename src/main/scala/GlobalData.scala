@@ -80,7 +80,7 @@ object GlobalData {
     val optimiseDirectAddresses: Boolean = optimisations
     val optimiseTransfers: Boolean = optimisations
     val optimiseHardwareQuirks: Boolean = optimisations
-    val optimiseBubbleUp: Boolean = optimisations
+    val optimiseBubbleUp: Boolean = true
   }
 
   object snesData{

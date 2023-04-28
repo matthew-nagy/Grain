@@ -81,11 +81,19 @@ object Errors{
       badToken.lineNumber,
       "Symbol '" ++ badToken.lexeme ++ "' not found"
     )
+
   def CannotHaveArrayArgument(filename: String, badToken: Token): SyntaxError =
     SyntaxError(
       filename,
       badToken.lineNumber,
       "Cannot have a pure array type as an argument. Please use pointers"
+    )
+
+  def CannotHaveArrayReturnType(filename: String, badToken: Token): SyntaxError =
+    SyntaxError(
+      filename,
+      badToken.lineNumber,
+      "Cannot have a pure array type as a return type. Please use pointers"
     )
 
   def SymbolRedefinition(filename: String, oldToken: Token, newToken: Token): SyntaxError =
@@ -167,5 +175,16 @@ object Errors{
     SyntaxError(
       filename, lineNumber,
       "Cannot call a non-MMIO function from inside an MMIO scope. Attempted to call non-MMIO function " ++ nonMMIOFuncName
-    )  
+    )
+
+  def MemberDoesntExit(lineNumber: Int, tryingType: Utility.Struct, memberName: String, filename: String): SyntaxError =
+    SyntaxError(
+      filename, lineNumber,
+      "'" ++ tryingType.name ++ "' has no member '" ++ memberName ++ "'."
+    )
+  def CannotUseGetOnType(lineNumber: Int, filename: String): SyntaxError=
+    SyntaxError(
+      filename, lineNumber,
+      "Cannot use '.' operator on non struct type"
+    )
 }

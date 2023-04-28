@@ -4,6 +4,7 @@ import Utility.{Token, TokenType}
 
 import scala.io.Source
 import scala.annotation.tailrec
+import scala.collection.mutable.ListBuffer
 
 object Scanner{
 
@@ -49,7 +50,7 @@ object Scanner{
 
       bankIndex = endLine
       charIndex = endIndex
-      builder.toString
+      builder.toString.filterNot(_ == '\\')
     }
 
     def atEndOfFile:Boolean =
@@ -107,7 +108,10 @@ object Scanner{
           TokenType.IntLiteral
     }
     private def scanStringLiteral(startLine: Int): TokenType = {
-      while(charBank.peek != '"') charBank.advance()
+      while(charBank.peek != '"'){
+        if(charBank.peek == '\\')charBank.advance()//Skip the next one too lmao
+        charBank.advance()
+      }
       charBank.advance()
 
       TokenType.StringLiteral
@@ -187,7 +191,23 @@ object Scanner{
     val charBank = CharBank(trimmedLines)
     val scanner = ScannerObject(charBank)
 
-    scanner.scan()
+    @tailrec
+    def parseOutShorthands(list: List[Token], parsedList: List[Token]): List[Token] = {
+      val (newlyFound, leftToParse) = list match
+        case Nil => return parsedList
+        case Token(TokenType.Identifier, varName, ln) :: Token(mathsToken, mt, _) :: Token(TokenType.Equal, _, _) :: remaining
+          if Set(
+            TokenType.Plus, TokenType.Minus, TokenType.Modulo8, TokenType.Percent, TokenType.ShiftLeft, TokenType.ShiftRight,
+            TokenType.Star, TokenType.Multiply8, TokenType.Slash, TokenType.Divide8, TokenType.Xor, TokenType.And,
+            TokenType.Or
+          ).contains(mathsToken)
+        =>
+          (Token(TokenType.Identifier, varName, ln) :: Token(TokenType.Equal, "=", ln) :: Token(TokenType.Identifier, varName, ln) :: Token(mathsToken, mt, ln) :: Nil, remaining)
+        case _ => (list.head :: Nil, list.tail)
+      parseOutShorthands(leftToParse, parsedList ::: newlyFound)
+    }
+
+    parseOutShorthands(scanner.scan(), Nil)
   }
 
   def scanText(filename: String): List[Token] = scanText(Source.fromFile(filename).getLines.toList)

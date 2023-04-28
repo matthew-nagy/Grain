@@ -190,7 +190,7 @@ object StatementParser {
         ExpressionParser.typeCheck(filename, condition, scope)
         val ifScope = scope.getChildOrThis(statement)
         typeCheck(filename, body, ifScope)
-        if(!Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType())){
+        if(!Utility.typeEquivalent(scope.getTypeOf(condition), Utility.BooleanType())){
           throw Errors.badlyTyped(
             filename,
             "Expected boolean, " ++ condition.toString ++ " had type " ++ scope.getTypeOf(condition).toString
@@ -201,14 +201,14 @@ object StatementParser {
           case Some(elseStmt) => typeCheck(filename, elseStmt.body, ifScope.getChildOrThis(elseStmt))
       case Return(Some(expr)) =>
         ExpressionParser.typeCheck(filename, expr, scope)
-        if(!Utility.typeEquivilent(scope.getTypeOf(expr), scope.getReturnType)){
+        if(!Utility.typeEquivalent(scope.getTypeOf(expr), scope.getReturnType)){
           throw Errors.badlyTyped(filename, expr.toString ++ " has type " ++ scope.getTypeOf(expr).toString ++ " but the stated return type is " ++ scope.getReturnType.toString)
         }
       case Return(None) =>
       case VariableDecl(Expr.Assign(name, initializer)) =>
         ExpressionParser.typeCheck(filename, initializer, scope)
         val assignToken = name.asInstanceOf[Utility.Token]
-        if(!Utility.typeEquivilent(scope(assignToken.lexeme).dataType, scope.getTypeOf(initializer))){
+        if(!Utility.typeEquivalent(scope(assignToken.lexeme).dataType, scope.getTypeOf(initializer))){
           throw Errors.badlyTyped(
             filename,
             assignToken.lexeme ++ " of type " ++ scope(assignToken.lexeme).dataType.toString ++ " cannot be innitializeationabled with type " ++ scope.getTypeOf(initializer).toString
@@ -216,7 +216,7 @@ object StatementParser {
         }
       case While(condition, body, _, _) =>
         ExpressionParser.typeCheck(filename, condition, scope)
-        if(!Utility.typeEquivilent(scope.getTypeOf(condition), Utility.BooleanType())){
+        if(!Utility.typeEquivalent(scope.getTypeOf(condition), Utility.BooleanType())){
           throw Errors.badlyTyped(
             filename,
             "RRRRRRRRRRREEEEEEEEEEEEEEEEEEEEEEEEE"

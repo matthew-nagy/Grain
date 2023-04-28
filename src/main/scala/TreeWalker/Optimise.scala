@@ -226,6 +226,9 @@ object Optimise {
       case Nil => return alreadyOptimised
       case IR.PopDummyValue(dummyReg) :: afterDummey =>
         afterDummey match
+          case IR.SetZero(address) :: remaining =>
+            sweepDidWork = true
+            Result(IR.SetZero(address) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
           case IR.Load(imOrAd, lReg) :: IR.Store(StackRelative(2), pReg) :: IR.JumpLongSaveReturn(arity1Func) :: remaining if lReg == pReg && dummyReg != lReg && functionArity(arity1Func.name) == 1 =>
             sweepDidWork = true
             Result(IR.Load(getImmediateOrAddressWithoutStackPush(imOrAd), lReg) :: IR.Store(StackRelative(2), pReg) :: IR.JumpLongSaveReturn(arity1Func) :: IR.PopDummyValue(dummyReg) :: Nil, remaining)
@@ -256,6 +259,7 @@ object Optimise {
       //Maybe this can be changed to decriments in the seconary sweep
       case IR.Load(Immediate(smaller), reg1) :: IR.Store(Direct(dA), reg1S) :: IR.Load(Immediate(larger), reg2) :: IR.Store(Direct(dB), reg2S) :: IR.Load(imOrAd, reg3) :: remaining
         if smaller < larger && reg1 == reg1S && reg2 == reg2S && reg1 == reg2 && reg2 == reg3 && dA != dB=>
+        sweepDidWork = true
         Result(IR.Load(Immediate(larger), reg1) :: IR.Store(Direct(dB), reg1) :: IR.Load(Immediate(smaller), reg1) :: IR.Store(Direct(dA), reg1) :: Nil,IR.Load(imOrAd, reg3) :: remaining)
 
       case IR.PushDummyValue(dummyReg) :: afterDummy =>
@@ -287,6 +291,7 @@ object Optimise {
     Optimise.bubbleUpInstructions(next.remaining, alreadyOptimised ::: next.optimisedFragment)
   }
 
+
   @tailrec
   def removeUnneccesaryDetails(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
     val next: Result = instructions match
@@ -299,6 +304,9 @@ object Optimise {
         Result(IR.PopDummyValue(dReg) :: IR.JumpLongWithoutReturn(subroutine).addComment("Return chain can be removed") :: Nil, remaining)
       case IR.JumpLongSaveReturn(somewhere) :: IR.ReturnLong() :: remaining =>
         Result(IR.JumpLongWithoutReturn(somewhere).addComment("Return  chain can be removed") :: Nil, remaining)
+      //This can happen when returning a constant
+      case IR.Load(something, YReg()) :: IR.PopDummyValue(XReg()) :: IR.TransferYTo(AReg()) :: remaining =>
+        Result(IR.Load(something, AReg()) :: IR.PopDummyValue(XReg()) :: Nil, remaining)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
 
@@ -312,9 +320,12 @@ object Optimise {
     var currentNumber = startingValue
     while (lookForRedundency) do {
       afterOperations match
-        case nonRegAlteringOperation :: IR.Load(Immediate(nextValue), reg) :: otherRemaining if nonRegAlteringOperation.isInstanceOf[IR.NonRegAltering] && reg == currentReg && (nextValue + currentNumber).abs == 1.0 =>
+        case nonRegAlteringOperation :: IR.Load(Immediate(nextValue), reg) :: otherRemaining if nonRegAlteringOperation.isInstanceOf[IR.NonRegAltering] && reg == currentReg && (nextValue - currentNumber).abs <= 1.0 =>
           afterOperations = otherRemaining
-          if(nextValue == (startingValue - 1)){
+          if(nextValue == currentNumber){
+            betterOrder.addOne(nonRegAlteringOperation)
+          }
+          else if(nextValue == (currentNumber - 1)){
             betterOrder.addAll(nonRegAlteringOperation :: IR.DecrementReg(reg) :: Nil)
           }
           else{
@@ -335,22 +346,8 @@ object Optimise {
         getResultOfRegister1Off(IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: IR.DecrementReg(reg) :: Nil, value2, reg, remaining)
       case IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: IR.Load(Immediate(value2), reg2) :: remaining if reg == reg2 && (value + 1) == value2 && nonRegAlteringOperation.isInstanceOf[IR.NonRegAltering] =>
         getResultOfRegister1Off(IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: IR.IncrementReg(reg) :: Nil, value2, reg, remaining)
-      case IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: remaining if nonRegAlteringOperation.isInstanceOf[IR.NonRegAltering] =>
-        var afterOperations = remaining
-        var lookForRedundency = true
-        val betterOrder = ListBuffer.empty[IR.Instruction].addAll(IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: Nil)
-        while(lookForRedundency)do{
-          afterOperations match
-            case IR.Load(Immediate(otherValue), otherReg) :: someOp :: otherRemaining if otherValue == value && otherReg == reg =>
-              betterOrder.addOne(someOp)
-              afterOperations = otherRemaining
-              if(!someOp.isInstanceOf[IR.NonRegAltering]){
-                lookForRedundency = false
-              }
-            case _ =>
-              lookForRedundency = false
-        }
-        Result(betterOrder.toList, afterOperations)
+      case IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: IR.Load(Immediate(value2), reg2) :: remaining if reg == reg2 && value == value2 && nonRegAlteringOperation.isInstanceOf[IR.NonRegAltering] =>
+        getResultOfRegister1Off(IR.Load(Immediate(value), reg) :: nonRegAlteringOperation :: Nil, value2, reg, remaining)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
 

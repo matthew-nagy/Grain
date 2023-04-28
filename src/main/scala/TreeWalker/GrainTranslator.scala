@@ -97,10 +97,9 @@ object GrainTranslator {
       case VariableDecl(assignment) =>
         GlobalsCode(ExpressionTranslator.getFromAccumulator(assignment, TranslatorScope(scope, translatorSymbolTable)).toGetThere) :: Nil
       case FunctionDecl(funcSymbol, args, body, _) =>
-        val defaultFuncLabel = (if(funcSymbol.name.contains('.'))"method_" else "func_") ++ funcSymbol.name
-        
+        val defaultFuncLabel = (if(!funcSymbol.name.contains("."))"func_" else "method_") ++ funcSymbol.name
         Optimise.functionArity.addOne(defaultFuncLabel, args.length)
-        
+
         body match
           case asmBody: Stmt.Assembly =>
             FunctionCode(IRBuffer().append(IR.PutLabel(Label(defaultFuncLabel)) :: StatementTranslator(asmBody, TranslatorScope(scope, translatorSymbolTable)).toList).append(IR.Spacing()), defaultFuncLabel):: Nil
@@ -163,8 +162,8 @@ object GrainTranslator {
     var filename = "src/main/"
     //filename += "array2d.txt"
     //filename += "fragment.txt"
-    filename += "snake.txt"
-    //filename += "Ackermann.grain"
+    //filename += "snake.txt"
+    filename += "Ackermann.grain"
     //filename += "test2"
 
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename, 0)

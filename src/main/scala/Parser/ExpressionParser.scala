@@ -50,7 +50,7 @@ object ExpressionParser {
     val expr = parseLogical(scope, tokenBuffer)
 
     if(tokenBuffer.peekType == TokenType.Equal) {
-      tokenBuffer.advance()
+      val equalToken = tokenBuffer.advance()
       val right = parseAssignment(scope, tokenBuffer)
 
       var expression = expr
@@ -245,8 +245,17 @@ object ExpressionParser {
       case TokenType.Dot =>
         callStartToken = tokenBuffer.advance()
         val name = tokenBuffer.matchType(TokenType.Identifier)
-        expr = Expr.Get(expr, name)
-        true
+        val leftType = scope.getTypeOf(expr)
+        leftType match
+          case structType: Utility.Struct =>
+            if(structType.contains(name.lexeme)){
+              expr = Expr.Get(expr, name)
+              true
+            }
+            else{
+              throw Errors.MemberDoesntExit(callStartToken.lineNumber, structType, name.lexeme, tokenBuffer.getFilename)
+            }
+          case _ => throw Errors.CannotUseGetOnType(callStartToken.lineNumber, tokenBuffer.getFilename)
       case TokenType.Asperand =>
         if(tokenBuffer.peek.lineNumber != callStartToken.lineNumber){
           false
@@ -401,14 +410,14 @@ object ExpressionParser {
         typeCheck(filename, arg, scope)
         target match
           case varToken: Utility.Token =>
-            if(!Utility.typeEquivilent(scope(varToken.lexeme).dataType, scope.getTypeOf(arg))){
+            if(!Utility.typeEquivalent(scope(varToken.lexeme).dataType, scope.getTypeOf(arg))){
               throw Errors.badlyTyped(filename,
                 varToken.lexeme ++ " has type " ++ scope(varToken.lexeme).dataType.toString ++ ", rValue has type " ++ scope.getTypeOf(arg).toString
               )
             }
           case Get(left, memberToken) =>
               typeCheck(filename, left, scope)
-              if (!Utility.typeEquivilent(scope.getTypeOf(left).asInstanceOf[Utility.Struct].getTypeOf(memberToken.lexeme), scope.getTypeOf(arg))) {
+              if (!Utility.typeEquivalent(scope.getTypeOf(left).asInstanceOf[Utility.Struct].getTypeOf(memberToken.lexeme), scope.getTypeOf(arg))) {
                 throw Errors.badlyTyped(filename,
                   memberToken.lexeme ++ " has type " ++ scope(memberToken.lexeme).dataType.toString ++ ", rValue has type " ++ scope.getTypeOf(arg).toString
                 )
@@ -423,20 +432,20 @@ object ExpressionParser {
         typeCheck(filename, right, scope)
         op match
           case _ if Operation.Groups.LogicalTokens.contains(op) || Operation.Groups.RelationalTokens.contains(op) =>
-            if(!Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))){
+            if(!Utility.typeEquivalent(scope.getTypeOf(left), scope.getTypeOf(right))){
               throw Errors.badlyTyped(filename,
                 "LValue " ++ left.toString ++ " with type " ++ scope.getTypeOf(left).toString ++
                   "cannot use " ++ op.toString ++ " with RValue of type " ++ scope.getTypeOf(right).toString ++ " (" ++ right.toString ++ ")"
               )
             }
           case _ if Operation.Groups.ArithmeticTokens.contains(op) =>
-            if(!Utility.typeEquivilent(scope.getTypeOf(left), Utility.Word())){
+            if(!Utility.typeEquivalent(scope.getTypeOf(left), Utility.Word())){
               throw Errors.badlyTyped(
                 filename,
                 op.toString ++ " requires arguments of type word. Left argument (" ++ left.toString ++ ") has type " ++ scope.getTypeOf(left).toString
               )
             }
-            if(!Utility.typeEquivilent(scope.getTypeOf(right), Utility.Word())){
+            if(!Utility.typeEquivalent(scope.getTypeOf(right), Utility.Word())){
               throw Errors.badlyTyped(
                 filename,
                 op.toString ++ " requires arguments of type word. Right argument (" ++ right.toString ++ ") has type " ++ scope.getTypeOf(right).toString
@@ -461,7 +470,7 @@ object ExpressionParser {
           case Utility.FunctionPtr(argTypes, _, _) =>
             argTypes.zip(arguments.map(scope.getTypeOf)).forall(
               (expectedT, givenT) => {
-                if (!Utility.typeEquivilent(expectedT, givenT)) {
+                if (!Utility.typeEquivalent(expectedT, givenT)) {
                   throw Errors.badlyTyped(
                     filename,
                     "Expected type " ++ expectedT.toString ++ " but got type " ++ givenT.toString ++ ". (" ++ expr.toString ++ ")"
@@ -497,16 +506,16 @@ object ExpressionParser {
         val ofType = scope.getTypeOf(of)
         typeCheck(filename, of, scope)
         typeCheck(filename, by, scope)
-        if(!Utility.typeEquivilent(scope.getTypeOf(by), Utility.Word())){
+        if(!Utility.typeEquivalent(scope.getTypeOf(by), Utility.Word())){
           throw Errors.badlyTyped(filename, by.toString ++ " has type " ++ scope.getTypeOf(by).toString ++ ", expected word")
         }
-        if(!ofType.isInstanceOf[Utility.PtrType]){
+        if(!ofType.isInstanceOf[Utility.IndexableType]){
           throw Errors.cannotIndexNonPoinerElements(filename, of.toString, ofType)
         }
       case SetIndex(left, right) =>
         typeCheck(filename, left, scope)
         typeCheck(filename, right, scope)
-        if (!Utility.typeEquivilent(scope.getTypeOf(left), scope.getTypeOf(right))) {
+        if (!Utility.typeEquivalent(scope.getTypeOf(left), scope.getTypeOf(right))) {
           throw Errors.badlyTyped(
             filename,
             left.toString ++ " has type " ++ scope.getTypeOf(left).toString ++ ", rValue has type " ++ scope.getTypeOf(right).toString

@@ -2,6 +2,7 @@ package Utility
 
 import Grain.*
 
+import scala.annotation.tailrec
 import scala.collection.Set
 import scala.collection.mutable.ListBuffer
 
@@ -12,13 +13,13 @@ val bitdepthLiteralStrings: Set[String] = Set("2bpp", "4bpp", "8bpp")
 sealed trait Type{
   override def hashCode(): Int = toString.hashCode
 }
-sealed trait PtrType extends Type
+sealed trait IndexableType(of: Type) extends Type
 sealed trait SpecialType extends Type
 
 
 //If in the future multi sized tiles are supported nativly, here is where to put it
 case class Sprite(bitdepth: Bitdepth) extends SpecialType
-case class SpriteType() extends SpecialType
+case class GenericSprite() extends SpecialType
 case class Palette() extends SpecialType
 case class BitdepthType() extends SpecialType
 case class DataBankIndex() extends SpecialType
@@ -29,10 +30,10 @@ case class Word() extends Type
 case class ROMWord() extends Type
 case class BooleanType() extends Type
 case class StringLiteral() extends Type
-case class Ptr(to: Type) extends PtrType{
-  override def toString: String = "Ptr(" ++ typeToRecursionSafeString(to) ++ ")"
+case class Ptr(of: Type) extends IndexableType(of){
+  override def toString: String = "Ptr(" ++ typeToRecursionSafeString(of) ++ ")"
 }
-case class Array(of: Type, length: Int) extends PtrType{
+case class Array(of: Type, length: Int) extends IndexableType(of){
   override def toString: String =
     "Array<" ++ typeToRecursionSafeString(of) ++ ">[" ++ length.toString ++ "]"
 }
@@ -91,7 +92,7 @@ case class Struct(name: String, entries: ListBuffer[Struct.Entry], definedFuncti
       case Some(symbol) => symbol.dataType
       case None =>
         throw new Exception("Class " ++ name ++ " doesn't have a member variable called " ++ entryName)
-  
+
   def contains(name: String): Boolean = entries.exists(_.symbol.token.lexeme == name)
 
   override def toString: String =
@@ -121,22 +122,29 @@ def stripPtrType(t: Type):Type = {
     case _ => throw new Exception(t.toString ++ " is not a pointer type")
 }
 
-def typeEquivilent(t1: Type, t2: Type): Boolean = {
-  if(t1 == t2){
-    true
+def isSpriteType(quearyType: Type): Boolean =
+  quearyType.isInstanceOf[GenericSprite] || quearyType.isInstanceOf[Sprite]
+
+def typeEquivalent(t1: Type, t2: Type): Boolean = {
+  val isT1Indexable = t1.isInstanceOf[IndexableType]
+  val isT2Indexable = t2.isInstanceOf[IndexableType]
+  //You can't assign a pointer to a non pointer, and vice versa
+  if(isT1Indexable ^ isT2Indexable){
+    false
   }
-  else if((t1.isInstanceOf[SpriteType] && t2.isInstanceOf[Sprite]) || (t1.isInstanceOf[Sprite] && t2.isInstanceOf[SpriteType])){
-    true
-  }
-  else{
-    if(t1.isInstanceOf[PtrType] && t2.isInstanceOf[PtrType]){
-      typeEquivilent(stripPtrType(t1), stripPtrType(t2))
-    }
-    else{
-      println(t1.toString ++ " != " ++ t2.toString)
-      false
-    }
-  }
+  else typeEquivalentPostIndexerCheck(t1, t2)
+}
+@tailrec
+def typeEquivalentPostIndexerCheck(t1: Type, t2: Type): Boolean = {
+  val t1IsIndexable = t1.isInstanceOf[IndexableType]
+  val t2IsIndexable = t2.isInstanceOf[IndexableType]
+
+  //Either look for an underlying pointer type
+  (t1IsIndexable, t2IsIndexable) match
+    case (true, true) => typeEquivalentPostIndexerCheck(stripPtrType(t1), stripPtrType(t2))
+    case (false, true) => typeEquivalentPostIndexerCheck(t1, stripPtrType(t2))
+    case (true, false) => typeEquivalentPostIndexerCheck(stripPtrType(t1), t2)
+    case (false, false) => t1 == t2 || (isSpriteType(t1) && isSpriteType(t2))
 }
 
 def typeToRecursionSafeString(t: Type): String=

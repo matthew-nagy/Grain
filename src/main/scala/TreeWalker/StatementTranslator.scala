@@ -154,7 +154,13 @@ object StatementTranslator {
       case Return(value) =>
         value match
           case None => IR.Load(StackRelative(scope.getStackFrameOffset), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()).addComment("Reset the stack") :: IR.ReturnLong() :: Nil
-          case Some(value) => toAccumulator(value, scope) :::
+          case Some(value) =>
+            val valueToAccumulator = scope.inner.getTypeOf(value) match
+              case Utility.Array(_, _) =>
+                val (address, toGetAddress) = Getting.getAddressOf(value, scope)
+                toGetAddress.append(Getting.getAddressIntoAcumulator(address)).toList
+              case _ => toAccumulator(value, scope)
+            valueToAccumulator :::
             (IR.TransferAccumulatorTo(YReg()) :: IR.Load(StackRelative(scope.getStackFrameOffset), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) ::
               IR.TransferYTo(AReg()) :: IR.ReturnLong() :: Nil)
 
