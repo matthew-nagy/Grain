@@ -1,5 +1,6 @@
 {
   "globals_start": 32,
+  "lowram_global_limit": "$1200",
   "wram_top": "$7FFF",
   "assembler_path": "snes/WLA/",
   "emulator_path": ".\\snes\\bsnes-plus\\bsnes.exe",
@@ -7,5 +8,5 @@
   "default_optimisations_full": true,
   "ROM_header_path": "snes/Header.inc",
   "init_path": "snes/Snes_Init.asm",
-  "pre_setup_code": ["Snes_Init"]
+  "pre_setup_code": ["Snes_Init", ".include \"snes/AssemblyFunctions.asm\""]
 }

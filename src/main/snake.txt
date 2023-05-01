@@ -36,9 +36,6 @@ fruitTile: word = 19
 gameRunning: bool = true
 
 func setTile(x: word, y: word, tileID: word){
-    asm{
-        ".Block \"mainCode\""
-    }
     x = x + 1
     y = y + 5
     background[y][x] = tileID
@@ -221,7 +218,4 @@ func main(){
 
 func VBlank() {
     sendDataToBackground2()
-    asm{
-        ".Endb"
-    }
 }

@@ -113,7 +113,7 @@ object GrainTranslator {
               case "VBlank" =>
                 translatorSymbolTable.usedFunctionLabels.addOne("VBlank")
                 (IR.PutLabel(Label("VBlank")) :: IR.PushRegister(AReg()) ::  IR.PushRegister(XReg()) :: IR.PushRegister(YReg()) ::
-                IR.PushProcessorStatus() :: Nil ::: VBlankReturnIfFrameIsUnfinished ::: IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0x80), AReg()) :: IR.Store(Direct(0x2100), AReg()) :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil, "VBlank")
+                IR.PushProcessorStatus() :: Nil ::: VBlankReturnIfFrameIsUnfinished ::: IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0x80), AReg()) :: IR.UserAssembly("sta $2100" :: Nil) :: IR.SetReg16Bit(RegisterGroup.AXY) :: Nil, "VBlank")
               case _ => (IR.PutLabel(Label(defaultFuncLabel)) :: Nil, defaultFuncLabel)
 
             val saveStack =
@@ -131,7 +131,7 @@ object GrainTranslator {
 
             val funcEnd = funcSymbol.name match
               case "main" => IR.StopClock().addComment("At the end of main") :: Nil
-              case "VBlank" => IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0x0F), AReg()) :: IR.Store(Direct(0x2100), AReg()) :: IR.PutLabel(VBlankEndLabel) :: IR.PullProcessorStatus() :: IR.PopRegister(YReg()) :: IR.PopRegister(XReg()) :: IR.PopRegister(AReg()) :: IR.ReturnFromInterrupt() :: Nil
+              case "VBlank" => IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0x0F), AReg()) :: IR.UserAssembly("sta $2100" :: Nil) :: IR.PutLabel(VBlankEndLabel) :: IR.PullProcessorStatus() :: IR.PopRegister(YReg()) :: IR.PopRegister(XReg()) :: IR.PopRegister(AReg()) :: IR.ReturnFromInterrupt() :: Nil
               case _ => IR.ReturnLong() :: Nil
 
             val instructionList = functionStart ::: saveStack ::: prepareStack ::: translatedBody.toList ::: fixStack ::: funcEnd
@@ -162,8 +162,8 @@ object GrainTranslator {
     var filename = "src/main/"
     //filename += "array2d.txt"
     //filename += "fragment.txt"
-    //filename += "snake.txt"
-    filename += "Ackermann.grain"
+    filename += "snake.txt"
+    //filename += "Ackermann.grain"
     //filename += "test2"
 
     val tokenBuffer = Parser.TokenBuffer(Scanner.scanText(filename), filename, 0)

@@ -12,7 +12,7 @@ import scala.io.Source
 
 object GlobalData {
   case class GlobalConfig(
-                           globalsStart: Int, wramTop: String,
+                           globalsStart: Int, globalsLowLimit: String, wramTop: String,
                            assemblerPath: String, emulatorPath: String,
                            includePaths: List[String], defaultOptimisations: Boolean,
                            romHeaderPath: String, initPath: String, preSetupCode: List[String]
@@ -23,7 +23,9 @@ object GlobalData {
         jsonVal match{
           case json: JsonObject =>
             GlobalConfig(
-              json.getInt("globals_start"), json.getString("wram_top"),
+              json.getInt("globals_start"),
+              json.getString("lowram_global_limit"),
+              json.getString("wram_top"),
               json.getString("assembler_path"), json.getString("emulator_path"),
               json.getJsonArray("include_paths").values.map(_.as[String]).toList,
               json.getBoolean("default_optimisations_full"),
@@ -53,9 +55,9 @@ object GlobalData {
     val tempStack = 2 //When you bank switch (when I add that), you can store where the stack *was*, here
     val dmaFlags = 4  //Keep track of what channels you set up
     val frameFinished = 6 //Has the current frame finished updating?
-    val randomSeed = 10 //Current random value
-    val multiplicationResultHigh = 8
-    val multiplicationResultLow = 12
+    val randomSeed = 8 //Current random value
+    val multiplicationResultLow = 10
+    val multiplicationResultHigh = 12
     val hardwareMathsArgLeft = 14
     val hardwareMathsArgRight = 16
 
@@ -80,7 +82,7 @@ object GlobalData {
     val optimiseDirectAddresses: Boolean = optimisations
     val optimiseTransfers: Boolean = optimisations
     val optimiseHardwareQuirks: Boolean = optimisations
-    val optimiseBubbleUp: Boolean = true
+    val optimiseBubbleUp: Boolean = optimisations
   }
 
   object snesData{

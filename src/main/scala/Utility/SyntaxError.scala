@@ -12,6 +12,21 @@ case class SyntaxError(filename: String, lineNumber: Int, message: String) exten
   }
 }
 object Errors{
+  def ranIntoStack(symbol: Symbol): SyntaxError =
+    SyntaxError(
+      "[NA]", symbol.token.lineNumber,
+      "Variable '" ++ symbol.name ++ "' breaks into the stack! (too many variables in high ram. Either extend high ram or try optimising memory usage)"
+    )
+  def overflowedLowRam(symbol: Symbol, lowLimit: Int, currentPlace: Int, size: Int): SyntaxError =
+    SyntaxError(
+      "[NA]", symbol.token.lineNumber,
+      "Variable '" ++ symbol.name ++ "' overflows lowram globals limit defined in grain_config.json.(Either store some in high ram or optimise memory usage!) Globals were at " ++ currentPlace.toString ++ ", size was " ++ size.toString ++ ", limit is " ++ lowLimit.toString
+    )
+  def CannotHaveHiramLocalVariable(filename: String, token: Token): SyntaxError =
+    SyntaxError(
+      filename, token.lineNumber,
+      "Cannot specify local variable '" ++ token.lexeme ++ "' as hiram; it may only go on the low ram stack"
+    )
   def expectedTokenError(filename: String, found: Token, expected: TokenType):SyntaxError =
     SyntaxError(
       filename,

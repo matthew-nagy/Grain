@@ -279,7 +279,7 @@ object ExpressionParser {
     expr
   }
 
-  private def hexDigit(digit: Char): Int = {
+  def hexDigit(digit: Char): Int = {
     val digitMap: Map[Char, Int] = Range(0, 10).map(v => v.toString()(0) -> v).toMap[Char, Int] ++
       Map[Char, Int]('A' -> 10, 'B' -> 11, 'C' -> 12, 'D' -> 13, 'E' -> 14, 'F' -> 15)
     digitMap(digit)

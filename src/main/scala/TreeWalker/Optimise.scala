@@ -102,12 +102,12 @@ object Optimise {
     val next: Result = instructions match
       case Nil => return alreadyOptimised
       case IR.Load(Immediate(x), AReg()) :: IR.ClearCarry() :: IR.AddCarry(Direct(address1)) ::
-        IR.Store(Direct(address2), AReg()) :: remaining if x <= 2 && address1 == address2 =>
+        IR.Store(Direct(address2), AReg()) :: remaining if x <= 2 && address1 == address2 && address1 < 0x1FFF =>
         Result((for i <- Range(0, x) yield IR.IncrementMemory(Direct(address1))).toList, remaining)
 
       case IR.Load(Immediate(x), reg1) :: IR.PushRegister(reg2) :: IR.Load(Direct(address1), AReg()) ::
         IR.SetCarry() :: IR.SubtractCarry(StackRelative(2)) :: IR.PopDummyValue(_) ::
-        IR.Store(Direct(address2), AReg()) :: remaining if x <= 2 && address1 == address2 && reg1 == reg2 =>
+        IR.Store(Direct(address2), AReg()) :: remaining if x <= 2 && address1 == address2 && reg1 == reg2 && address1 < 0x1FFF =>
         Result((for i <- Range(0, x) yield IR.DecrementMemory(Direct(address1))).toList, remaining)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
@@ -185,7 +185,7 @@ object Optimise {
         Result(IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0xFF00)) :: (if (num == 8) Nil else IR.ShiftLeft(AReg(), num - 8) :: Nil), remaining)
       case IR.ShiftRight(AReg(), num) :: remaining if num >= 8=>
         Result(IR.ExchangeAccumulatorBytes() :: IR.AND(Immediate(0x00FF)) :: (if (num == 8) Nil else IR.ShiftRight(AReg(), num - 8) :: Nil), remaining)
-      case IR.Load(Immediate(0), reg) :: IR.Store(Direct(somewhere), reg2) :: remaining if reg == reg2 =>
+      case IR.Load(Immediate(0), reg) :: IR.Store(Direct(somewhere), reg2) :: remaining if reg == reg2 && somewhere < 0x1FFF =>
         Result(IR.SetZero(Direct(somewhere)) :: Nil, remaining)
       case IR.Load(Immediate(0), reg1) :: IR.Compare(someAddress, reg2) :: IR.BranchIfNotEqual(label) :: next :: remaining
         if reg1 == reg2 && someAddress.isInstanceOf[Address] && !next.isInstanceOf[IR.Branch] =>

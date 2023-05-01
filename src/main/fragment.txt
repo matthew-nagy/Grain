@@ -10,7 +10,24 @@ class Vec2{
 vector: Vec2
 
 func main(){
-    vector.swap()
+    asm{
+        "lda #$6969"
+        "sta $7E2500"
+        "ldx #$50"
+        "top"
+        "sta $7E2500, x"
+        "dex"
+        "cpx #0"
+        "bne top"
+        ";beq top"
+    }
+    left: word = 23
+    right: word = 372
+    result: word = left * right
+    asm{
+        "forever:"
+        "bra forever"
+    }
 }
 
 func VBlank(){

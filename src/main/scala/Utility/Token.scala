@@ -13,7 +13,7 @@ enum TokenType:
   //Built-in Types
        Ptr, BitdepthLiteral, RamGateLiteral,
   //Keywords
-       Abs, As, Assembly, Break, Case, Class, Do, Else, False, From, Func, For, If,
+       Abs, As, Assembly, Break, Case, Class, Do, Else, False, From, Func, For, Hiram, If,
        Include, Load, MMIO, Null, Referencing, Return, Tile, True,
        Then, While,
   //Little built in pre process things
@@ -86,6 +86,7 @@ object Token{
     "from" -> From,
     "func" -> Func,
     "for" -> For,
+    "hiram" -> Hiram,
     "if" -> If,
     "include" -> Include,
     "load" -> Load,

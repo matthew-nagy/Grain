@@ -1,4 +1,5 @@
 package Grain
+import Parser.ExpressionParser
 import Utility.{Errors, ROMWord, Token, Type, Word, getTypeSize}
 
 import scala.collection.mutable.*
@@ -22,7 +23,7 @@ object Symbol{
   sealed trait StackStored(var stackOffset: Int = 0)
   //TODO chances are we need a form for member variables
 
-  case class GlobalVariable(var location: Int = 0) extends SymbolForm
+  case class GlobalVariable(hiram: Boolean, var location: Int = 0) extends SymbolForm
   case class FunctionDefinition(isAllAssembly: Boolean) extends SymbolForm
   case class Argument() extends SymbolForm with StackStored(0)
   case class Variable() extends SymbolForm with StackStored(0)
@@ -56,14 +57,14 @@ class Scope(private val parentScope: Option[Scope], val symbolTable: SymbolTable
     form.stackOffset = frameSize
     frameSize += symbolSize
   }
-  def addGlobal(form: Symbol.GlobalVariable, symbolSize: Int): Unit = throw new Exception("Can't add global to non global scope")
+  def addGlobal(symbol: Symbol, form: Symbol.GlobalVariable, symbolSize: Int): Unit = throw new Exception("Can't add global to non global scope")
 
   def addSymbol(name: Token, symbol: Symbol, filename: String): Unit =
     symbolMap.contains(name.lexeme) match
       case false =>
         symbol.form match {
           case stored: Symbol.StackStored => addToStack(stored, symbol.size)
-          case glob: Symbol.GlobalVariable => addGlobal(glob, symbol.size)
+          case glob: Symbol.GlobalVariable => addGlobal(symbol, glob, symbol.size)
           case _ =>
         }
         symbolMap.addOne(name.lexeme, symbol)
@@ -172,8 +173,18 @@ class FunctionScope(parentScope: Option[Scope], symbolTable: SymbolTable, mmio: 
   def setReturnType(newReturnType: Type):Unit = returnType = newReturnType
 }
 
+def assemblyHexToInt(hex: String): Int ={
+  val substr = hex.substring(1)
+  substr.map(c => ExpressionParser.hexDigit(c)).foldLeft(0){
+    (tot, next) =>
+      println(tot.toString ++ "  " ++ next.toString)
+      (tot << 4) + next
+  }
+}
+
 class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable, false){
   private var globalHeapPtr: Int = GlobalData.Config.globalsStart
+  private var hiGlobalHeapPtr: Int = assemblyHexToInt(GlobalData.Config.wramTop)
   private var currentDataBank: Int = 0
   private var currentBankSize: Int = 0
 
@@ -203,9 +214,22 @@ class GlobalScope(symbolTable: SymbolTable) extends Scope(None, symbolTable, fal
   }
 
   override def addToStack(form: Symbol.StackStored, symbolSize: Int) = throw new Exception("Can't add global variable to stack")
-  override def addGlobal(form: Symbol.GlobalVariable, symbolSize: Int): Unit = {
-    form.location = globalHeapPtr
-    globalHeapPtr += symbolSize
+  override def addGlobal(symbol: Symbol, form: Symbol.GlobalVariable, symbolSize: Int): Unit = {
+    if(!form.hiram) {
+      form.location = globalHeapPtr
+      globalHeapPtr += symbolSize
+      val loLimit = assemblyHexToInt(GlobalData.Config.globalsLowLimit)
+      if (globalHeapPtr > loLimit) {
+        throw Errors.overflowedLowRam(symbol, loLimit, globalHeapPtr - symbolSize, symbolSize)
+      }
+    }
+    else{
+      hiGlobalHeapPtr -= symbolSize
+      form.location = hiGlobalHeapPtr
+      if(hiGlobalHeapPtr <= 0x1FFF){
+        throw Errors.ranIntoStack(symbol)
+      }
+    }
   }
 }
 

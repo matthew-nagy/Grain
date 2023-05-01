@@ -1,6 +1,6 @@
 func setSeed(value: word) mmio asm{
     "lda 4, s"
-    "sta $A"
+    "sta $8"
     "rtl"
 }
 
@@ -9,13 +9,13 @@ func seedWithInput() mmio asm{
     "asl"
     "asl"
     "eor $4219"
-    "ora $A"
-    "sta $A"
+    "ora $8"
+    "sta $8"
     "rtl"
 }
 
 func lastRandom():word mmio asm{
-    "lda $A"
+    "lda $8"
     "rtl"
 }
 
@@ -34,32 +34,32 @@ func randomByte(): word mmio asm{
 func random():word mmio asm{
     "sep #$30"
 
-    "lda $B"
+    "lda $9"
     "tay"
     "lsr"
     "lsr"
     "lsr"
-    "sta $B"
+    "sta $9"
     "lsr"
-    "eor $B"
+    "eor $9"
     "lsr"
-    "eor $B"
-    "eor $A"
-    "sta $B"
+    "eor $9"
+    "eor $8"
+    "sta $9"
 
     "tya"
-    "sta $A"
+    "sta $8"
     "asl"
-    "eor $A"
+    "eor $8"
     "asl"
-    "eor $A"
+    "eor $8"
     "asl"
     "asl"
     "asl"
-    "eor $A"
-    "sta $A"
+    "eor $8"
+    "sta $8"
 
     "rep #$30"
-    "lda $A"
+    "lda $8"
     "rtl"
 }

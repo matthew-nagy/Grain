@@ -246,7 +246,7 @@ object Getting{
       case DirectIndexedIndirect(offset, by) => IR.Load(DirectIndexed(offset, by), AReg()) :: Nil
       case DirectIndirectIndexed(offset, by) => IR.PushRegister(by) :: IR.Load(Direct(offset), AReg()) ::
         IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil
-      case StackRelative(offset) => IR.TransferToAccumulator(StackPointerReg()) :: IR.SetCarry() :: IR.SubtractCarry(Immediate(offset)) :: Nil
+      case StackRelative(offset) => IR.TransferToAccumulator(StackPointerReg()) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: Nil
       case StackRelativeIndirectIndexed(stackOffset, by) => IR.PushRegister(by) :: IR.Load(StackRelative(stackOffset + 2), AReg()) :: IR.ClearCarry() ::
         IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(XReg()) :: Nil
   }
@@ -466,7 +466,10 @@ object ExpressionTranslator {
           IR.Load(Direct(GlobalData.Addresses.signedMultiplyLowByteResult), AReg()) :: Nil)
 
       case Operation.Binary.Multiply =>
-        throw Exception("Not heccin done")
+        putRightInMultiplicand ::: (
+          IR.SetReg16Bit(RegisterGroup.A) ::
+          IR.Load(leftLocation.address, AReg()) :: IR.JumpLongSaveReturn(Label("signed_16x16_multiplication")) :: Nil
+        )
 
       case Operation.Binary.Divide8Bit =>
         val getResult = IR.Load(Direct(GlobalData.Addresses.divisionResultLowByte), AReg()) :: IR.SetReg16Bit(RegisterGroup.XY) :: Nil

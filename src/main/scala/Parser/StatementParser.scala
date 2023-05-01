@@ -126,8 +126,13 @@ object StatementParser {
   def parseVariableSymbol(scope: Scope, tokenBuffer: TokenBuffer, atTopLevel: Boolean): Symbol = {
     val varToken = tokenBuffer.matchType(TokenType.Identifier)
     tokenBuffer.matchType(TokenType.Colon)
+    val hiram: Boolean = if(tokenBuffer.peekType == TokenType.Hiram){
+      tokenBuffer.advance()
+      if(!atTopLevel) throw Errors.CannotHaveHiramLocalVariable(tokenBuffer.getFilename, varToken)
+      true
+    }else false
     val varType = parseType(scope.symbolTable, tokenBuffer)
-    val symbolForm = if (atTopLevel) Symbol.GlobalVariable() else Symbol.Variable()
+    val symbolForm = if (atTopLevel) Symbol.GlobalVariable(hiram) else Symbol.Variable()
     Symbol.make(varToken, varType, symbolForm)
   }
 

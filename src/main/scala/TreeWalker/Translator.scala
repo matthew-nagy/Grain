@@ -14,13 +14,20 @@ object Translator {
       case StackPointerReg() => "s"
   private def getImmediate(immediate: Immediate): String =
     "#" ++ immediate.value.toString
+
+  private def bankCorrect(location: Int): Int = {
+    if(location > 0x1FFF){
+//      throw new Exception("wut")
+      location + 0x7E0000
+    } else location
+  }
   private def getAddress(address: Address): String =
     address match
-      case Direct(address) => address.toString
-      case DirectIndexed(address, by) => address.toString ++ ", " ++ getReg(by)
-      case DirectIndirect(address) => "(" ++ address.toString ++ ")"
-      case DirectIndexedIndirect(address, by) => "(" ++ address.toString ++ ", " ++ getReg(by) ++ ")"
-      case DirectIndirectIndexed(address, by) => "(" ++ address.toString ++ "), " ++ getReg(by)
+      case Direct(address) => bankCorrect(address).toString
+      case DirectIndexed(address, by) => bankCorrect(address).toString ++ ", " ++ getReg(by)
+      case DirectIndirect(address) => "(" ++ bankCorrect(address).toString ++ ")"
+      case DirectIndexedIndirect(address, by) => "(" ++ bankCorrect(address).toString ++ ", " ++ getReg(by) ++ ")"
+      case DirectIndirectIndexed(address, by) => "(" ++ bankCorrect(address).toString ++ "), " ++ getReg(by)
       case StackRelative(offset) => (offset - 1).toString ++ ", s"
       case StackRelativeIndirectIndexed(offset, by) => "(" ++ (offset - 1).toString ++ ", s), " ++ getReg(by)
       case null => throw new Exception("Cannot find this address type")
