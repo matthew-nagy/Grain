@@ -480,8 +480,6 @@ asl A
 asl A
 asl A
 asl A
-clc
-adc #56
 pha
 lda 12, s
 asl A
@@ -490,7 +488,7 @@ adc 1, s
 plx	;Dummy pull
 tax
 lda 6, s
-sta 0, x
+sta 56, x
 plx	;Dummy pull
 rtl
 
@@ -512,8 +510,6 @@ asl A
 asl A
 asl A
 asl A
-clc
-adc #56
 pha
 lda 10, s
 asl A
@@ -521,7 +517,7 @@ clc
 adc 1, s
 plx	;Dummy pull
 tax
-lda 0, x
+lda 56, x
 plx	;Dummy pull
 rtl
 
@@ -666,7 +662,7 @@ pha
 jsl func_setVRamTarget
 lda #56
 sta 1, s
-lda #0
+lda #$7E
 pha
 lda #2048
 pha
@@ -698,23 +694,6 @@ inc A
 sta 1, s	;Storing the assignment
 bra for_l76_f0
 for_end_l76_f0:
-lda #0
-sta 1, s	;Storing the assignment
-for_l78_f0:
-lda #1200	;Condition: BinaryOp(Less,Variable(Token(Identifier, 'i', 78)),NumericalLiteral(1200))
-cmp 1, s
-bcc for_end_l78_f0
-beq for_end_l78_f0	;End of condition (BinaryOp(Less,Variable(Token(Identifier, 'i', 78)),NumericalLiteral(1200))), either branched if IfFalse or fallen through
-lda 1, s
-asl A
-tax
-lda #0
-sta 2104, x
-lda 1, s
-inc A
-sta 1, s	;Storing the assignment
-bra for_l78_f0
-for_end_l78_f0:
 lda #20
 sta 2104
 sta 2106
@@ -861,37 +840,37 @@ rtl
 func_updatePlayerDirectionalOffset:
 tsx
 phx	;Record stack frame
-lda 32	;Condition: Get(Variable(Token(Identifier, 'playerInput', 134)),Token(Identifier, 'Left', 134))
-beq Else_l134_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 134)),Token(Identifier, 'Left', 134))), either branched if IfFalse or fallen through
+lda 32	;Condition: Get(Variable(Token(Identifier, 'playerInput', 132)),Token(Identifier, 'Left', 132))
+beq Else_l132_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 132)),Token(Identifier, 'Left', 132))), either branched if IfFalse or fallen through
 lda #-1
 sta 4504	;Assigning simple getter
 stz 4506
-bra If_End_l134_f0
-Else_l134_f0:
-lda 34	;Condition: Get(Variable(Token(Identifier, 'playerInput', 138)),Token(Identifier, 'Right', 138))
-beq Else_l138_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 138)),Token(Identifier, 'Right', 138))), either branched if IfFalse or fallen through
+bra If_End_l132_f0
+Else_l132_f0:
+lda 34	;Condition: Get(Variable(Token(Identifier, 'playerInput', 136)),Token(Identifier, 'Right', 136))
+beq Else_l136_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 136)),Token(Identifier, 'Right', 136))), either branched if IfFalse or fallen through
 lda #1
 sta 4504	;Assigning simple getter
 stz 4506
-bra If_End_l138_f0
-Else_l138_f0:
-lda 36	;Condition: Get(Variable(Token(Identifier, 'playerInput', 142)),Token(Identifier, 'Up', 142))
-beq Else_l142_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 142)),Token(Identifier, 'Up', 142))), either branched if IfFalse or fallen through
+bra If_End_l136_f0
+Else_l136_f0:
+lda 36	;Condition: Get(Variable(Token(Identifier, 'playerInput', 140)),Token(Identifier, 'Up', 140))
+beq Else_l140_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 140)),Token(Identifier, 'Up', 140))), either branched if IfFalse or fallen through
 stz 4504
 lda #-1
 sta 4506	;Assigning simple getter
-bra If_End_l142_f0
-Else_l142_f0:
-lda 38	;Condition: Get(Variable(Token(Identifier, 'playerInput', 146)),Token(Identifier, 'Down', 146))
-beq Else_l146_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 146)),Token(Identifier, 'Down', 146))), either branched if IfFalse or fallen through
+bra If_End_l140_f0
+Else_l140_f0:
+lda 38	;Condition: Get(Variable(Token(Identifier, 'playerInput', 144)),Token(Identifier, 'Down', 144))
+beq Else_l144_f0	;End of condition (Get(Variable(Token(Identifier, 'playerInput', 144)),Token(Identifier, 'Down', 144))), either branched if IfFalse or fallen through
 stz 4504
 lda #1
 sta 4506	;Assigning simple getter
-Else_l146_f0:
-If_End_l146_f0:
-If_End_l142_f0:
-If_End_l138_f0:
-If_End_l134_f0:
+Else_l144_f0:
+If_End_l144_f0:
+If_End_l140_f0:
+If_End_l136_f0:
+If_End_l132_f0:
 plx	;Dummy pull
 rtl
 
@@ -930,52 +909,52 @@ lda 4506
 clc
 adc 5, s
 sta 1, s	;Storing the assignment
-lda #0	;Condition: BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(0)),BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(0))),BinaryOp(Less,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(30))),BinaryOp(Less,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(20))),BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 161)),List(Variable(Token(Identifier, 'newX', 161)), Variable(Token(Identifier, 'newY', 161)))),Variable(Token(Identifier, 'snakeBodyTile', 161))))
+lda #0	;Condition: BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newX', 159)),NumericalLiteral(0)),BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(0))),BinaryOp(Less,Variable(Token(Identifier, 'newX', 159)),NumericalLiteral(30))),BinaryOp(Less,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(20))),BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 159)),List(Variable(Token(Identifier, 'newX', 159)), Variable(Token(Identifier, 'newY', 159)))),Variable(Token(Identifier, 'snakeBodyTile', 159))))
 cmp 3, s
 beq +
 bcs ++
-+:	;End of condition (BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(0))), either branched if IfFalse or fallen through
-lda #1	;BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(0))is true
++:	;End of condition (BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newX', 159)),NumericalLiteral(0))), either branched if IfFalse or fallen through
+lda #1	;BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newX', 159)),NumericalLiteral(0))is true
 bra +++
 ++:
 lda #0	;Its false
 +++:	;End Binary check, clear stack beneath
 pha
-lda #0	;Condition: BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(0))
+lda #0	;Condition: BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(0))
 cmp 3, s
 beq +
 bcs ++
-+:	;End of condition (BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(0))), either branched if IfFalse or fallen through
-lda #1	;BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(0))is true
++:	;End of condition (BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(0))), either branched if IfFalse or fallen through
+lda #1	;BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(0))is true
 bra +++
 ++:
 lda #0	;Its false
 +++:	;End Binary check, clear stack beneath
 and 1, s
 sta 1, s
-lda #30	;Condition: BinaryOp(Less,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(30))
+lda #30	;Condition: BinaryOp(Less,Variable(Token(Identifier, 'newX', 159)),NumericalLiteral(30))
 cmp 5, s
 bcc ++
-beq ++	;End of condition (BinaryOp(Less,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(30))), either branched if IfFalse or fallen through
-lda #1	;BinaryOp(Less,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(30))is true
+beq ++	;End of condition (BinaryOp(Less,Variable(Token(Identifier, 'newX', 159)),NumericalLiteral(30))), either branched if IfFalse or fallen through
+lda #1	;BinaryOp(Less,Variable(Token(Identifier, 'newX', 159)),NumericalLiteral(30))is true
 bra +++
 ++:
 lda #0	;Its false
 +++:	;End Binary check, clear stack beneath
 and 1, s
 sta 1, s
-lda #20	;Condition: BinaryOp(Less,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(20))
+lda #20	;Condition: BinaryOp(Less,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(20))
 cmp 3, s
 bcc ++
-beq ++	;End of condition (BinaryOp(Less,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(20))), either branched if IfFalse or fallen through
-lda #1	;BinaryOp(Less,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(20))is true
+beq ++	;End of condition (BinaryOp(Less,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(20))), either branched if IfFalse or fallen through
+lda #1	;BinaryOp(Less,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(20))is true
 bra +++
 ++:
 lda #0	;Its false
 +++:	;End Binary check, clear stack beneath
 and 1, s
 sta 1, s
-lda 5, s	;Condition: BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 161)),List(Variable(Token(Identifier, 'newX', 161)), Variable(Token(Identifier, 'newY', 161)))),Variable(Token(Identifier, 'snakeBodyTile', 161)))
+lda 5, s	;Condition: BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 159)),List(Variable(Token(Identifier, 'newX', 159)), Variable(Token(Identifier, 'newY', 159)))),Variable(Token(Identifier, 'snakeBodyTile', 159)))
 pha
 lda 5, s
 pha
@@ -984,8 +963,8 @@ sta 3, s
 plx	;Dummy pull
 lda 4518
 cmp 1, s
-beq ++	;End of condition (BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 161)),List(Variable(Token(Identifier, 'newX', 161)), Variable(Token(Identifier, 'newY', 161)))),Variable(Token(Identifier, 'snakeBodyTile', 161)))), either branched if IfFalse or fallen through
-lda #1	;BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 161)),List(Variable(Token(Identifier, 'newX', 161)), Variable(Token(Identifier, 'newY', 161)))),Variable(Token(Identifier, 'snakeBodyTile', 161)))is true
+beq ++	;End of condition (BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 159)),List(Variable(Token(Identifier, 'newX', 159)), Variable(Token(Identifier, 'newY', 159)))),Variable(Token(Identifier, 'snakeBodyTile', 159)))), either branched if IfFalse or fallen through
+lda #1	;BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 159)),List(Variable(Token(Identifier, 'newX', 159)), Variable(Token(Identifier, 'newY', 159)))),Variable(Token(Identifier, 'snakeBodyTile', 159)))is true
 bra +++
 ++:
 lda #0	;Its false
@@ -994,9 +973,9 @@ and 3, s
 plx	;Dummy pull
 plx	;Dummy pull
 cmp #1
-beq JMP_not_taken_to_Else_l161_f0	;End of condition (BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(0)),BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(0))),BinaryOp(Less,Variable(Token(Identifier, 'newX', 161)),NumericalLiteral(30))),BinaryOp(Less,Variable(Token(Identifier, 'newY', 161)),NumericalLiteral(20))),BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 161)),List(Variable(Token(Identifier, 'newX', 161)), Variable(Token(Identifier, 'newY', 161)))),Variable(Token(Identifier, 'snakeBodyTile', 161))))), either branched if IfTrue or fallen through
-jmp Else_l161_f0
-JMP_not_taken_to_Else_l161_f0:
+beq JMP_not_taken_to_Else_l159_f0	;End of condition (BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(And,BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newX', 159)),NumericalLiteral(0)),BinaryOp(GreaterEqual,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(0))),BinaryOp(Less,Variable(Token(Identifier, 'newX', 159)),NumericalLiteral(30))),BinaryOp(Less,Variable(Token(Identifier, 'newY', 159)),NumericalLiteral(20))),BinaryOp(NotEqual,FunctionCall(Variable(Token(Identifier, 'getTile', 159)),List(Variable(Token(Identifier, 'newX', 159)), Variable(Token(Identifier, 'newY', 159)))),Variable(Token(Identifier, 'snakeBodyTile', 159))))), either branched if IfTrue or fallen through
+jmp Else_l159_f0
+JMP_not_taken_to_Else_l159_f0:
 lda 3, s
 pha
 lda 3, s
@@ -1005,8 +984,8 @@ jsl func_getTile
 sta 1, s
 lda 4524
 cmp 1, s
-bne ++	;End of condition (BinaryOp(Equal,FunctionCall(Variable(Token(Identifier, 'getTile', 162)),List(Variable(Token(Identifier, 'newX', 162)), Variable(Token(Identifier, 'newY', 162)))),Variable(Token(Identifier, 'fruitTile', 162)))), either branched if IfFalse or fallen through
-lda #1	;BinaryOp(Equal,FunctionCall(Variable(Token(Identifier, 'getTile', 162)),List(Variable(Token(Identifier, 'newX', 162)), Variable(Token(Identifier, 'newY', 162)))),Variable(Token(Identifier, 'fruitTile', 162)))is true
+bne ++	;End of condition (BinaryOp(Equal,FunctionCall(Variable(Token(Identifier, 'getTile', 160)),List(Variable(Token(Identifier, 'newX', 160)), Variable(Token(Identifier, 'newY', 160)))),Variable(Token(Identifier, 'fruitTile', 160)))), either branched if IfFalse or fallen through
+lda #1	;BinaryOp(Equal,FunctionCall(Variable(Token(Identifier, 'getTile', 160)),List(Variable(Token(Identifier, 'newX', 160)), Variable(Token(Identifier, 'newY', 160)))),Variable(Token(Identifier, 'fruitTile', 160)))is true
 bra +++
 ++:
 lda #0	;Its false
@@ -1021,7 +1000,7 @@ bra ++
 lda #1
 ++:
 cmp #1
-bne Else_l163_f0	;End of condition (UnaryOp(BooleanNegation,Variable(Token(Identifier, 'ateFruit', 163)))), either branched if IfFalse or fallen through
+bne Else_l161_f0	;End of condition (UnaryOp(BooleanNegation,Variable(Token(Identifier, 'ateFruit', 161)))), either branched if IfFalse or fallen through
 lda 4512
 asl A
 tax
@@ -1038,8 +1017,8 @@ jsl func_setTile
 plx	;Dummy pull
 plx	;Dummy pull
 plx	;Dummy pull
-Else_l163_f0:
-If_End_l163_f0:
+Else_l161_f0:
+If_End_l161_f0:
 lda 5, s
 pha
 lda 5, s
@@ -1060,7 +1039,7 @@ plx	;Dummy pull
 lda 4514
 inc A
 sta 4514	;Storing the assignment
-lda 1, s	;Condition: UnaryOp(BooleanNegation,Variable(Token(Identifier, 'ateFruit', 167)))
+lda 1, s	;Condition: UnaryOp(BooleanNegation,Variable(Token(Identifier, 'ateFruit', 165)))
 cmp #0
 beq +
 lda #0
@@ -1069,16 +1048,16 @@ bra ++
 lda #1
 ++:
 cmp #1
-bne Else_l167_f0	;End of condition (UnaryOp(BooleanNegation,Variable(Token(Identifier, 'ateFruit', 167)))), either branched if IfFalse or fallen through
+bne Else_l165_f0	;End of condition (UnaryOp(BooleanNegation,Variable(Token(Identifier, 'ateFruit', 165)))), either branched if IfFalse or fallen through
 lda 4512
 inc A
 sta 4512	;Storing the assignment
-lda #600	;Condition: BinaryOp(Equal,Variable(Token(Identifier, 'tailIndex', 169)),NumericalLiteral(600))
+lda #600	;Condition: BinaryOp(Equal,Variable(Token(Identifier, 'tailIndex', 167)),NumericalLiteral(600))
 cmp 4512
-bne Else_l169_f0	;End of condition (BinaryOp(Equal,Variable(Token(Identifier, 'tailIndex', 169)),NumericalLiteral(600))), either branched if IfFalse or fallen through
+bne Else_l167_f0	;End of condition (BinaryOp(Equal,Variable(Token(Identifier, 'tailIndex', 167)),NumericalLiteral(600))), either branched if IfFalse or fallen through
 stz 4512
-Else_l169_f0:
-If_End_l169_f0:
+Else_l167_f0:
+If_End_l167_f0:
 lda 4512
 asl A
 tax
@@ -1095,16 +1074,16 @@ jsl func_setTile
 plx	;Dummy pull
 plx	;Dummy pull
 plx	;Dummy pull
-bra If_End_l167_f0
-Else_l167_f0:
+bra If_End_l165_f0
+Else_l165_f0:
 jsl func_spawnFruit
-If_End_l167_f0:
-lda #600	;Condition: BinaryOp(Equal,Variable(Token(Identifier, 'headIndex', 175)),NumericalLiteral(600))
+If_End_l165_f0:
+lda #600	;Condition: BinaryOp(Equal,Variable(Token(Identifier, 'headIndex', 173)),NumericalLiteral(600))
 cmp 4514
-bne Else_l175_f0	;End of condition (BinaryOp(Equal,Variable(Token(Identifier, 'headIndex', 175)),NumericalLiteral(600))), either branched if IfFalse or fallen through
+bne Else_l173_f0	;End of condition (BinaryOp(Equal,Variable(Token(Identifier, 'headIndex', 173)),NumericalLiteral(600))), either branched if IfFalse or fallen through
 stz 4514
-Else_l175_f0:
-If_End_l175_f0:
+Else_l173_f0:
+If_End_l173_f0:
 lda 4514
 asl A
 tax
@@ -1116,17 +1095,17 @@ tax
 lda 3, s
 sta 3304, x
 plx	;Dummy pull
-bra If_End_l161_f0
-Else_l161_f0:
+bra If_End_l159_f0
+Else_l159_f0:
 stz 4526
-If_End_l161_f0:
+If_End_l159_f0:
 lda #0
 pha
-for_l181_f0:
-lda #8	;Condition: BinaryOp(Less,Variable(Token(Identifier, 'i', 181)),NumericalLiteral(8))
+for_l179_f0:
+lda #8	;Condition: BinaryOp(Less,Variable(Token(Identifier, 'i', 179)),NumericalLiteral(8))
 cmp 1, s
-bcc for_end_l181_f0
-beq for_end_l181_f0	;End of condition (BinaryOp(Less,Variable(Token(Identifier, 'i', 181)),NumericalLiteral(8))), either branched if IfFalse or fallen through
+bcc for_end_l179_f0
+beq for_end_l179_f0	;End of condition (BinaryOp(Less,Variable(Token(Identifier, 'i', 179)),NumericalLiteral(8))), either branched if IfFalse or fallen through
 lda #32
 pha
 lda #1
@@ -1139,8 +1118,8 @@ plx	;Dummy pull
 lda 1, s
 inc A
 sta 1, s	;Storing the assignment
-bra for_l181_f0
-for_end_l181_f0:
+bra for_l179_f0
+for_end_l179_f0:
 lda 11, s
 tcs
 rtl
@@ -1178,17 +1157,20 @@ pha
 jsl func_setSeed
 jsl func_setup
 plx	;Dummy pull
-While_l203_f0:
-While_l204_f0:
-lda 4526	;Condition: Variable(Token(Identifier, 'gameRunning', 204))
-beq While_End_l204_f0	;End of condition (Variable(Token(Identifier, 'gameRunning', 204))), either branched if IfFalse or fallen through
+;User Assembly
+lda $2137
+;End Assembly
+While_l205_f0:
+While_l206_f0:
+lda 4526	;Condition: Variable(Token(Identifier, 'gameRunning', 206))
+beq While_End_l206_f0	;End of condition (Variable(Token(Identifier, 'gameRunning', 206))), either branched if IfFalse or fallen through
 jsl func_updateFrame
-bra While_l204_f0
-While_End_l204_f0:
+bra While_l206_f0
+While_End_l206_f0:
 jsl func_addGameOverText
-While_l208_f0:
-lda 50	;Condition: BinaryOp(Equal,Get(Variable(Token(Identifier, 'playerInput', 208)),Token(Identifier, 'R', 208)),BooleanLiteral(false))
-bne While_End_l208_f0	;End of condition (BinaryOp(Equal,Get(Variable(Token(Identifier, 'playerInput', 208)),Token(Identifier, 'R', 208)),BooleanLiteral(false))), either branched if IfFalse or fallen through
+While_l210_f0:
+lda 50	;Condition: BinaryOp(Equal,Get(Variable(Token(Identifier, 'playerInput', 210)),Token(Identifier, 'R', 210)),BooleanLiteral(false))
+bne While_End_l210_f0	;End of condition (BinaryOp(Equal,Get(Variable(Token(Identifier, 'playerInput', 210)),Token(Identifier, 'R', 210)),BooleanLiteral(false))), either branched if IfFalse or fallen through
 lda #32
 pha
 lda #1
@@ -1197,13 +1179,13 @@ jsl func_updatePlayerInput
 jsl func_frame
 plx	;Dummy pull
 plx	;Dummy pull
-bra While_l208_f0
-While_End_l208_f0:
+bra While_l210_f0
+While_End_l210_f0:
 jsl func_secondarySetup
 lda #1
 sta 4526	;Storing the assignment
-bra While_l203_f0
-While_End_l203_f0:
+bra While_l205_f0
+While_End_l205_f0:
 plx	;Dummy pull
 stp	;At the end of main
 

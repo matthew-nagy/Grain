@@ -4,6 +4,8 @@ import Grain.Expr.*
 import Grain.*
 import Utility.{Token, TokenType}
 
+import scala.annotation.tailrec
+
 /*
 object Indexing{
 
@@ -236,6 +238,16 @@ object Getting{
       case DirectIndirect(value) => (DirectIndirectIndexed(value, XReg()), ExpressionTranslator.getFromAccumulator(by, scope).toGetThere
         .append(IR.TransferToX(AReg()))
       )
+      case DirectIndexed(location, reg) =>
+        val pushReg = IR.PushRegister(reg) :: Nil
+        scope.push()
+        val getNextIndex = ExpressionTranslator.getFromAccumulator(by, scope).toGetThere.append(onceInAccumulator)
+        scope.pop()
+        val buffer = IRBuffer().append(pushReg).append(getNextIndex).append(
+          IR.ClearCarry() :: IR.AddCarry(StackRelative(2)) :: IR.PopDummyValue(reg) ::
+            IR.TransferAccumulatorTo(reg) :: Nil
+        )
+        (DirectIndexed(location, reg), buffer)
 
   def getAddressIntoAcumulator(address: Address): List[IR.Instruction] = {
     address match
@@ -285,6 +297,7 @@ object Getting{
               .append(additionPopAndToX)
             )
   }
+
 
   def getIndexOfArray(arrayExpr: Expr.Expr, index: Expr.Expr, scope: TranslatorScope):(Address, IRBuffer) = {
     val (addressOfArray, codeToGetAddressOfArray) = getAddressOf(arrayExpr, scope)
@@ -449,21 +462,22 @@ object ExpressionTranslator {
   //Fix that nonsense
   private def translateHardwareMaths(op: Operation.Binary, leftLocation: StackLocation, expr: Expr.Expr): List[IR.Instruction] = {
     //val start = IR.TransferToY(AReg()) :: IR.Load(leftLocation.address, AReg()) :: IR.TransferToX(AReg()) ::
-    val startDivision: List[IR.Instruction] = IR.TransferToX(AReg()) :: IR.Load(leftLocation.address, AReg()) :: IR.SetReg8Bit(RegisterGroup.XY) ::
-      IR.Store(Direct(GlobalData.Addresses.dividendLowByte), XReg()) :: IR.Store(Direct(GlobalData.Addresses.divisor), AReg()) :: Nil
-    val waitForDivisionResult: List[IR.Instruction] = Range(0, 8).map(nothing => IR.NOP()).toList
 
-    val putRightInMultiplicand = IR.SetReg8Bit(RegisterGroup.A) :: IR.Store(Direct(GlobalData.Addresses.signedMultiplyMultiplicand), AReg()) :: IR.ExchangeAccumulatorBytes() ::
-      IR.Store(Direct(GlobalData.Addresses.signedMultiplyMultiplicand), AReg()) :: Nil
+    val storeLeftAndLoadStack = IR.Store(Direct(GlobalData.Addresses.dividendLowByte), AReg()).hardware :: IR.Load(leftLocation.address, AReg()) :: Nil
+    val setupAndRun8BitDivision = storeLeftAndLoadStack ::: (
+      IR.SetReg8Bit(RegisterGroup.A) :: IR.Store(Direct(GlobalData.Addresses.divisor), AReg()).hardware :: IR.SetReg16Bit(RegisterGroup.A) ::
+      IR.NOP() :: IR.NOP() :: IR.NOP() :: IR.NOP() :: IR.NOP() :: Nil
+      )
 
-    val (offsetLocation, toOffsetLocation) = Getting.certainlyOffsetAddress(leftLocation.address, 1)
+    val putRightInMultiplicand = IR.SetReg8Bit(RegisterGroup.A) :: IR.Store(Direct(GlobalData.Addresses.signedMultiplyMultiplicand), AReg()).hardware :: IR.ExchangeAccumulatorBytes() ::
+      IR.Store(Direct(GlobalData.Addresses.signedMultiplyMultiplicand), AReg()).hardware :: Nil
 
     op match
       case Operation.Binary.Multiply8Bit =>
         println(expr)
          putRightInMultiplicand ::: (IR.Load(leftLocation.address, AReg()) ::
-          IR.Store(Direct(GlobalData.Addresses.signedMultiplyMultiplier), AReg()) :: IR.SetReg16Bit(RegisterGroup.A) ::
-          IR.Load(Direct(GlobalData.Addresses.signedMultiplyLowByteResult), AReg()) :: Nil)
+          IR.Store(Direct(GlobalData.Addresses.signedMultiplyMultiplier), AReg()).hardware :: IR.SetReg16Bit(RegisterGroup.A) ::
+          IR.Load(Direct(GlobalData.Addresses.signedMultiplyLowByteResult), AReg()).hardware :: Nil)
 
       case Operation.Binary.Multiply =>
         putRightInMultiplicand ::: (
@@ -472,13 +486,16 @@ object ExpressionTranslator {
         )
 
       case Operation.Binary.Divide8Bit =>
-        val getResult = IR.Load(Direct(GlobalData.Addresses.divisionResultLowByte), AReg()) :: IR.SetReg16Bit(RegisterGroup.XY) :: Nil
-        startDivision ::: waitForDivisionResult ::: getResult
+          setupAndRun8BitDivision :::
+          (IR.Load(Direct(GlobalData.Addresses.divisionResultLowByte), AReg()).hardware :: Nil)
+
       case Operation.Binary.Divide =>
-        throw Exception("Not heccin done")
+          IR.Store(Direct(18), AReg()) :: IR.Load(leftLocation.address, AReg()) ::
+            IR.Store(Direct(20), AReg()) :: IR.JumpLongSaveReturn(Label("signed_16x16_division")) :: Nil
       case Operation.Binary.Modulo8Bit =>
-        val getResult = IR.Load(Direct(GlobalData.Addresses.divisionRemainderLowByte), AReg()) :: IR.SetReg16Bit(RegisterGroup.XY) :: Nil
-        startDivision ::: waitForDivisionResult ::: getResult
+          setupAndRun8BitDivision :::
+            (IR.Load(Direct(GlobalData.Addresses.divisionRemainderLowByte), AReg()).hardware :: Nil)
+
       case Operation.Binary.Modulo =>
         throw Exception("Not heccin done")
       case _ => throw new Exception("Binary operation not supported yet '" ++ op.toString ++ "' in expression '" ++ expr.toString ++ "'")
@@ -658,6 +675,7 @@ object ExpressionTranslator {
   }
 
   //Can cause stack decay
+  @tailrec
   def getFromStack(expr: Expr.Expr, scope: TranslatorScope): StackLocation = {
     def stackFromAccumulator(expr: Expr.Expr, scope: TranslatorScope): StackLocation = {
       val intoAccumulator = getFromAccumulator(expr, scope)

@@ -213,7 +213,7 @@ object Scanner{
   def scanText(filename: String): List[Token] = scanText(Source.fromFile(filename).getLines.toList)
 
   def main(args: Array[String]): Unit = {
-    val a = scanText("src/main/fragment.txt")
+    val a = scanText("src/main/fragment.grain")
     for line <- a do {
       println(line)
     }

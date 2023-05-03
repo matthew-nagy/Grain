@@ -27,8 +27,8 @@ sealed trait Offsetable
 sealed trait SimpleIndirectRemovable
 sealed trait Indexable
 case class Direct(address: Int) extends Address with Offsetable with Indexable
-case class DirectLabel(label: String) extends Address with Offsetable with Indexable
-case class DirectIndexed(address: Int, by: GeneralPurposeReg) extends Address with Offsetable
+case class DirectLabel(label: String) extends Address with Offsetable
+case class DirectIndexed(address: Int, by: GeneralPurposeReg) extends Address with Offsetable with Indexable
 case class DirectIndirect(address: Int) extends Address with SimpleIndirectRemovable with Indexable
 case class DirectIndexedIndirect(address: Int, by: GeneralPurposeReg) extends Address with SimpleIndirectRemovable
 case class DirectIndirectIndexed(address: Int, by: GeneralPurposeReg) extends Address with Offsetable
@@ -83,7 +83,16 @@ package IR:
       case EOR(StackRelativeIndirectIndexed(offset, reg)) => EOR(StackRelativeIndirectIndexed(offset + change, reg))
       case _ => saa
 
-  sealed trait LoadStore extends Instruction
+  sealed trait LoadStore extends Instruction {
+    private var hardwareAddress = false
+
+    def isHardware: Boolean = hardwareAddress
+
+    def hardware: LoadStore = {
+      hardwareAddress = true
+      return this
+    }
+  }
   sealed trait Transfer extends Instruction
   sealed trait Branch extends Instruction
   trait BranchWithLabel(label: Label) extends Branch{

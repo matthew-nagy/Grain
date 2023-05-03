@@ -116,8 +116,10 @@ object StatementTranslator {
         }
         val incCode = if(incrimentExpr.isDefined) ExpressionTranslator.getFromAccumulator(incrimentExpr.get, forScope).toGetThere.toList else Nil
 
+        val bodySize = IR.sizeOfIr(forBodyCode)
+
         forScope.extendStack() ::: startCode ::: (IR.PutLabel(startForLabel) :: Nil) ::: breakCode ::: fixConditionStack :::
-        forBodyCode ::: incCode ::: (IR.BranchShort(startForLabel) :: IR.PutLabel(endForLabel) :: Nil) :::
+        forBodyCode ::: incCode ::: ((if bodySize < GlobalData.snesData.maxConditionalJumpLength then IR.BranchShort(startForLabel) else IR.BranchLong(startForLabel)) :: IR.PutLabel(endForLabel) :: Nil) :::
         forScope.reduceStack() ::: fixConditionStack
       case If(condition, body, elseBranch, lineNumber, fileIndex) =>
         val elseStartLabel = Label("Else_l" ++ lineNumber.toString ++ "_f" ++ fileIndex.toString)
@@ -174,11 +176,14 @@ object StatementTranslator {
         val whileStart = whileScope.extendStack() :::
           (IR.PutLabel(startLabel) :: Nil)
         scope.rememberStackLocation()
-        val whileCondition = getConditionCode(condition, scope, endLabel, BranchType.IfFalse, IR.sizeOfIr(bodyCode))
+        val bodySize = IR.sizeOfIr(bodyCode)
+        val whileCondition = getConditionCode(condition, scope, endLabel, BranchType.IfFalse, bodySize)
         val fixStack = scope.getFixStackDecay().toList
 
         whileStart ::: whileCondition ::: fixStack ::: bodyCode.toList :::
-        (IR.BranchShort(startLabel) :: IR.PutLabel(endLabel) :: Nil)  :::
+        ((if bodySize < GlobalData.snesData.maxConditionalJumpLength then
+          IR.BranchShort(startLabel) else IR.BranchLong(startLabel))
+          :: IR.PutLabel(endLabel) :: Nil)  :::
         whileScope.reduceStack() ::: fixStack
 
       case _ => throw new Exception(stmt.toString ++ " cannot be translated yet")

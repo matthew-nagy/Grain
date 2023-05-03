@@ -152,7 +152,7 @@ package Expr:
     val - 0 and val + 0 and 0 + val are just val
     mult 1 and mult 0 is obs
     Powers of 2, rather than just 2 should cause a shift
-    other shit*/
+    other stuff*/
     //Everything to do with other versions of multiplication and division too
     import Operation.{Unary as UOp, Binary as BOp}
     treeOptimisedExpr match

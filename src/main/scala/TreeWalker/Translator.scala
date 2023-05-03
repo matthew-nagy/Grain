@@ -15,30 +15,33 @@ object Translator {
   private def getImmediate(immediate: Immediate): String =
     "#" ++ immediate.value.toString
 
-  private def bankCorrect(location: Int): Int = {
-    if(location > 0x1FFF){
+  private def bankCorrect(location: Int, isHardware: Boolean): Int = {
+    if(location > 0x1FFF && !isHardware){
 //      throw new Exception("wut")
       location + 0x7E0000
     } else location
   }
-  private def getAddress(address: Address): String =
+  private def getAddress(address: Address, isHardware: Boolean = false): String =
     address match
-      case Direct(address) => bankCorrect(address).toString
-      case DirectIndexed(address, by) => bankCorrect(address).toString ++ ", " ++ getReg(by)
-      case DirectIndirect(address) => "(" ++ bankCorrect(address).toString ++ ")"
-      case DirectIndexedIndirect(address, by) => "(" ++ bankCorrect(address).toString ++ ", " ++ getReg(by) ++ ")"
-      case DirectIndirectIndexed(address, by) => "(" ++ bankCorrect(address).toString ++ "), " ++ getReg(by)
+      case Direct(address) => bankCorrect(address,isHardware).toString
+      case DirectIndexed(address, by) => bankCorrect(address,isHardware).toString ++ ", " ++ getReg(by)
+      case DirectIndirect(address) => "(" ++ bankCorrect(address,isHardware).toString ++ ")"
+      case DirectIndexedIndirect(address, by) => "(" ++ bankCorrect(address,isHardware).toString ++ ", " ++ getReg(by) ++ ")"
+      case DirectIndirectIndexed(address, by) => "(" ++ bankCorrect(address,isHardware).toString ++ "), " ++ getReg(by)
       case StackRelative(offset) => (offset - 1).toString ++ ", s"
       case StackRelativeIndirectIndexed(offset, by) => "(" ++ (offset - 1).toString ++ ", s), " ++ getReg(by)
       case null => throw new Exception("Cannot find this address type")
 
   private def getBankImmediate(dataImmediate: BankImmediate, dataBankStart: Int): String =
-    "#" ++ (dataImmediate.value + dataBankStart).toString
+    if(dataImmediate.value == 0x7E)
+      "#$7E"
+    else
+      "#" ++ (dataImmediate.value + dataBankStart).toString
 
-  private def getImAd(imOrAd: ImmediateOrAddress, dataBankStart: Int): String =
+  private def getImAd(imOrAd: ImmediateOrAddress, dataBankStart: Int, isHardware: Boolean): String =
     imOrAd match
       case immediate: Immediate => getImmediate(immediate)
-      case address: Address => getAddress(address)
+      case address: Address => getAddress(address, isHardware)
       case dataImmediate: BankImmediate => getBankImmediate(dataImmediate, dataBankStart)
       case label: Label => "#" ++ label.name
 
@@ -47,9 +50,9 @@ object Translator {
       case _: AReg => "A"
       case address: Address => getAddress(address)
 
-  private def smpl(name: String, op: ImmediateOrAddress, dataBankStart: Int): String = $(name :: getImAd(op, dataBankStart) :: Nil)
+  private def smpl(name: String, op: ImmediateOrAddress, dataBankStart: Int, isHardware: Boolean): String = $(name :: getImAd(op, dataBankStart, isHardware) :: Nil)
   private def smpl(name: String, op: AccumulatorOrAddress): String = $(name :: getAcAd(op) :: Nil)
-  private def smpl(name: String, address: Address): String = $(name :: getAddress(address) :: Nil)
+  private def smpl(name: String, address: Address, isHardware: Boolean): String = $(name :: getAddress(address, isHardware) :: Nil)
   private def smpl(name: String, immediate: Immediate): String = $(name :: getImmediate(immediate) :: Nil)
   private def smpl(name: String, label: Label): String = $(name :: label.name :: Nil)
 
@@ -66,18 +69,18 @@ object Translator {
         sequence.tail.foldLeft(sequence.head)(_ ++ "\n" ++ _)
       }
     a match
-      case AddCarry(op) => smpl("adc", op, dataBankStart)
-      case SubtractCarry(op) => smpl("sbc", op, dataBankStart)
-      case AND(op) => smpl("and", op, dataBankStart)
-      case EOR(op) => smpl("eor", op, dataBankStart)
-      case ORA(op) => smpl("ora", op, dataBankStart)
+      case AddCarry(op) => smpl("adc", op, dataBankStart, false)
+      case SubtractCarry(op) => smpl("sbc", op, dataBankStart, false)
+      case AND(op) => smpl("and", op, dataBankStart, false)
+      case EOR(op) => smpl("eor", op, dataBankStart, false)
+      case ORA(op) => smpl("ora", op, dataBankStart, false)
       case ShiftLeft(op, times) =>
         unrollSequence(for i <- Range(0, times) yield smpl("asl", op))
       case ShiftRight(op, times) =>
         unrollSequence(for i <- Range(0, times) yield smpl("lsr", op))
       case RotateLeft(op) => smpl("rol", op)
       case RotateRight(op) => smpl("ror", op)
-      case BitTest(op) => smpl("bit", op, dataBankStart)
+      case BitTest(op) => smpl("bit", op, dataBankStart, false)
       case DecrementReg(reg) => incDec("de", reg)
       case IncrementReg(reg) => incDec("in", reg)
       case DecrementMemory(address) => $("dec" :: getAddress(address) :: Nil)
@@ -88,9 +91,9 @@ object Translator {
   private def loadStore(ls: LoadStore, dataBankStart: Int): String = {
     def ldOrSt(start: "ld" | "st", reg: TargetReg): String = start ++ getReg(reg)
     ls match
-      case Load(op, reg) => smpl(ldOrSt("ld", reg), op, dataBankStart)
-      case Store(address, reg) => smpl(ldOrSt("st", reg), address)
-      case SetZero(address) => smpl("stz", address)
+      case Load(op, reg) => smpl(ldOrSt("ld", reg), op, dataBankStart, ls.isHardware)
+      case Store(address, reg) => smpl(ldOrSt("st", reg), address, ls.isHardware)
+      case SetZero(address) => smpl("stz", address, ls.isHardware)
   }
   private def transfer(t: Transfer): String = {
     val transfers: Map[AnyReg, Map[AnyReg, String]] = Map(
@@ -115,7 +118,7 @@ object Translator {
           case AReg() => "cmp"
           case XReg() => "cmx"
           case YReg() => "cmy"
-        smpl(name, op, dataBankStart)
+        smpl(name, op, dataBankStart, false)
       case BranchIfNoCarry(label) => smpl("bcc", label)
       case BranchIfCarrySet(label) => smpl("bcs", label)
       case BranchIfNotEqual(label) => smpl("bne", label)

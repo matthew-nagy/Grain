@@ -166,6 +166,8 @@ object Optimise {
           case IR.TransferToY(AReg()) => Result(IR.Load(imOrAd, YReg()) :: Nil, remaining)
           case IR.TransferAccumulatorTo(YReg()) => Result(IR.Load(imOrAd, YReg()) :: Nil, remaining)
           case _ => Result(instructions.head :: Nil, instructions.tail)
+      case IR.TransferToX(AReg()) :: IR.PushRegister(XReg()) :: remaining =>
+        Result(IR.PushRegister(AReg()) :: Nil, remaining)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
     Optimise.registerUsage(next.remaining, alreadyOptimised ::: next.optimisedFragment)
@@ -220,6 +222,26 @@ object Optimise {
       case _ => instructions.head :: Optimise.transfers(instructions.tail)
 
 
+  /*
+
+    >>## The most important optimisation to have ##<<
+
+    By checking how long the CRT beam moves during an update frame of snake, all other
+    optimsations together gave a 1.16 optimisation over raw tree-walker output
+    But adding this in, it reached 1.22.
+    It trippled the speedup from the setup
+    Bubbling instructions up past independant operations (especially pops and pushes)
+    lets the other sweeps pick up on more optimisation oportunities by reordering the
+    order of computation in the program
+
+    Some more work could probably be done but a lot of them would benefit from having more IR classes
+    This would make it just a bit more messy
+
+    At some point, these should probably be split into three functions
+    The dummy push, dummy pull, and other bubbles function
+    tbh the push pop one *may* be able to be one function with some spicy arguments
+
+  */
   @tailrec
   def bubbleUpInstructions(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
     val next: Result = instructions match
@@ -284,6 +306,13 @@ object Optimise {
             address match
               case StackRelative(2) => Result(IR.PushRegister(reg) :: Nil, remaining)
               case _ => Result(IR.Store(getAddressWithAlteredStack(address, -2), reg) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
+          case IR.Load(imOrAd, AReg()) :: IR.Store(address, AReg()) :: remaining =>
+            val correctedImOrAd = getAddressWithAlteredStack(imOrAd, -2)
+            address match
+              case StackRelative(2) =>
+                Result(IR.Load(correctedImOrAd, AReg()) :: IR.PushRegister(AReg()):: Nil, remaining)
+              case _ =>
+                Result(IR.Load(correctedImOrAd, AReg()) :: IR.Store(getAddressWithAlteredStack(address, -2), AReg()) :: IR.PushDummyValue(dummyReg) :: Nil, remaining)
           case _ => Result(instructions.head :: Nil, instructions.tail)
       case _ =>
         Result(instructions.head :: Nil, instructions.tail)
@@ -292,6 +321,13 @@ object Optimise {
   }
 
 
+  /*
+    A seconary pass after the main passes are done
+    It is used for removing small things that other optimisation sweeps may have been able to use as something bigger
+    For example, a convoluted return sequence using a stack frame that is already at the bottom of the stack
+    Or doing the stack pointer at all, rather than just popping it
+    Or returning after a long jump if it is the last thing in a function
+  */
   @tailrec
   def removeUnneccesaryDetails(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
     val next: Result = instructions match
@@ -313,6 +349,14 @@ object Optimise {
     Optimise.removeUnneccesaryDetails(next.remaining, alreadyOptimised ::: next.optimisedFragment)
   }
 
+  /*
+    If you store a 15, then a 16, then a 17, etc
+    Which tends to happen if moving consecutive tiles to a background
+    It is better to incriment A than keep changing it
+    So the smaller numbers are bubbled up
+    And then this function does all the small scale tweaking
+    To make it as efficient as possible
+  */
   def getResultOfRegister1Off(firstPassage: List[IR.Instruction], startingValue: Int, currentReg: TargetReg, remaining: List[IR.Instruction]): Result = {
     var afterOperations = remaining
     var lookForRedundency = true
@@ -338,6 +382,13 @@ object Optimise {
     Result(betterOrder.toList, afterOperations)
   }
 
+  /*
+    If you are using the same value across several assignments, you will load that value each time
+    Which is really not that efficient
+    So you can go through and make sure
+      `setBackrgoundsActive(true, false, false, false, false)`
+    Only loads 0 once
+  */
   @tailrec
   def removeRedundentRegisterLoads(instructions: List[IR.Instruction], alreadyOptimised: List[IR.Instruction] = Nil): List[IR.Instruction] = {
     val next: Result = instructions match
@@ -384,6 +435,8 @@ object Optimise {
       result = Optimise.bubbleUpInstructions(result)
     }
 
+    println(result)
+    println("-----")
 
     if(result.length == instructions.length && !sweepDidWork){
       secondarySweeps(result)
@@ -396,15 +449,14 @@ object Optimise {
 
   def main(args: Array[String]): Unit = {
     val in: List[IR.Instruction] =
-      IR.Load(Immediate(1), AReg()) :: IR.PushRegister(AReg()) ::
-        IR.Load(Immediate(1), AReg()) :: IR.PushRegister(AReg()) ::
-        IR.Load(Immediate(1), AReg()) :: IR.PushRegister(AReg()) ::
-        IR.Load(Immediate(1), AReg()) :: IR.Load(StackRelative(2), AReg()) :: Nil
+      IR.PushDummyValue(XReg()) :: IR.PushDummyValue(XReg()) ::
+      IR.Load(Immediate(0), AReg()) :: IR.Store(StackRelative(4), AReg()) ::
+        IR.Load(Immediate(20), AReg()) :: IR.Store(StackRelative(2), AReg()) :: Nil
 
     functionArity.addOne("joke", 2)
 
     println(in)
     println("---")
-    println(removeRedundentRegisterLoads(in))
+    println(apply(in))
   }
 }

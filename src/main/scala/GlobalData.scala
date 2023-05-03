@@ -60,6 +60,10 @@ object GlobalData {
     val multiplicationResultHigh = 12
     val hardwareMathsArgLeft = 14
     val hardwareMathsArgRight = 16
+    val divisionTemp1 = 18
+    val divisionTemp2 = 20
+    val divisionTemp3 = 22
+    val divisionTemp4 = 24
 
     val signedMultiplyMultiplicand = 0x211b
     val signedMultiplyMultiplier = 0x211c
@@ -89,22 +93,7 @@ object GlobalData {
     val bankSize = 0x5000 //0x7FFF - the 0x1FFF WRAM mirror
     val generalInstructionSize = 3
     val maxConditionalJumpLength = 128
-
-    //Puts the bank0 sp into x from tempStack, saves bank 7e sp to tempStack, switches to bank 0,
-    //Then puts bank0 sp from x into the stack pointer
-    val switchToBank0: List[IR.Instruction] =
-      IR.Load(Direct(Addresses.tempStack), XReg()) :: IR.TransferToAccumulator(StackPointerReg()) ::
-        IR.Store(Direct(Addresses.tempStack), AReg()) ::
-        IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0), AReg()) :: IR.PushRegister(AReg()) :: IR.PullDataBankRegister() ::
-        IR.SetReg16Bit(RegisterGroup.A) :: IR.TransferXTo(StackPointerReg()) :: Nil
-
-    //Switches to bank 7E, loads what the stack used to be from temp stack, and puts that back in the stack
-    //Then sets temp stack back to 1FFF; where it should be when you start pushing again
-    val exitBank0: List[IR.Instruction] =
-      IR.SetReg8Bit(RegisterGroup.A) :: IR.Load(Immediate(0x7E), AReg()) :: IR.PushRegister(AReg()) :: IR.PullDataBankRegister() ::
-        IR.SetReg16Bit(RegisterGroup.A) :: IR.Load(Direct(Addresses.tempStack), AReg()) :: IR.TransferAccumulatorTo(StackPointerReg()) ::
-        IR.Load(Immediate(0x1FFF), AReg()) :: IR.Store(Direct(Addresses.tempStack), AReg()) :: Nil
-
+    
     val fileStart: List[String] = List(
       ".include \"" ++ Config.romHeaderPath ++ "\"",
       ".include \"" ++ Config.initPath ++ "\"",
@@ -120,45 +109,5 @@ object GlobalData {
       "stz 6"
     )
 
-    val multiply16x16: List[String] = List(
-      "signed_16x16_multiplication: ;https://wiki.superfamicom.org/16-bit-multiplication-and-division",
-      "sep #$10",
-      "ldx " ++ Addresses.hardwareMathsArgLeft.toString,
-      "stx $4202",
-      "ldy " ++ Addresses.hardwareMathsArgRight.toString,
-      "sty $4203" ++ " ;set up 1st multiply",
-      "ldx " ++ (Addresses.hardwareMathsArgRight + 1).toString,
-      "clc",
-      "lda $4216" ++ " ;load $4216 for 1st multiply",
-      "stx $4203" ++ " ;start 2nd multiply",
-      "sta " ++ Addresses.multiplicationResultLow.toString,
-      "stz " ++ Addresses.multiplicationResultHigh.toString ++ " ;high word of product needs to be cleared",
-      "lda $4216" ++ " ;read $4216 from 2nd multiply",
-      "ldx " ++ (Addresses.hardwareMathsArgLeft+1).toString,
-      "stx $4202" ++ " ;set up 3rd multiply",
-      "sty $4203" ++ " ;y still contains temp2",
-      "ldy " ++ (Addresses.hardwareMathsArgRight + 1).toString,
-      "adc " ++ (Addresses.multiplicationResultLow + 1).toString,
-      "adc $4216 ;add 3rd product",
-      "sta " ++ (Addresses.multiplicationResultLow + 1).toString,
-      "sty $4203 ;set up 4th multiply",
-      "lda " ++ Addresses.multiplicationResultHigh.toString ++ " ;carry bit to last byte of product",
-      "bcc +",
-      "adc #$00ff",
-      "+:",
-      "adc $4216", //add 4th product
-      "cpx #$80",
-      "bcc +",
-      "sbc {temp2}",
-      "+:",
-      "cpy #$80",
-      "bcc +",
-      "sbc {temp}",
-      "+:",
-      "sta {temp4}", //final store
-      "rep",
-      "#$10",
-      "rts"
-    )
   }
 }

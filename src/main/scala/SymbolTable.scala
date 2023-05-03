@@ -177,7 +177,6 @@ def assemblyHexToInt(hex: String): Int ={
   val substr = hex.substring(1)
   substr.map(c => ExpressionParser.hexDigit(c)).foldLeft(0){
     (tot, next) =>
-      println(tot.toString ++ "  " ++ next.toString)
       (tot << 4) + next
   }
 }

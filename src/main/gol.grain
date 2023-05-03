@@ -1,0 +1,97 @@
+load sprites, palette from "gol.png"
+
+include "src/main/GrainLib/DMA.grain"
+include "src/main/GrainLib/Hardware.grain"
+include "src/main/GrainLib/Backgrounds.grain"
+include "src/main/GrainLib/Random.grain"
+
+frameData: word[32] ptr
+nextFrameData: word[32] ptr
+frameMemory: word[32][32][2]
+
+func sendFrame(){
+    setVRamTarget(0x400)
+    setBackgroundAddressAndSize(1, 1, 0)
+    dmaArrayToVRam(frameData, 0x7E, 2048)
+    executeDMA()
+}
+
+func setup(threshold: word){
+    setScreenDisabledAndBrightness(true, 0)
+
+    frameData = (frameMemory[0])@
+    nextFrameData = (frameMemory[1])@
+
+    rVal: word
+    for i: word = 0; i < 1024; i += 1 do{
+        rVal = randomByte()
+        if rVal > threshold then
+            (frameData as word ptr)[i] = 1
+        else
+            (frameData as word ptr)[i] = 0
+    }
+
+    setVRamTarget(0)
+    dmaGraphicsToVRam(sprites, bankof(sprites), sizeof(sprites))
+    dmaToCGRam(palette, bankof(palette), sizeof(palette))
+    executeDMA()
+
+    sendFrame()
+
+    enableScreens(true, false, false, false, false)
+    enableInputAndNMI()
+    setScreenDisabledAndBrightness(false, 15)
+}
+
+func countAliveCells(x: word, y: word): word{
+    leftX: word = (x - 1) & 31
+    rightX: word = (x + 1) & 31
+    upY: word = (y - 1) & 31
+    downY: word = (y + 1) & 31
+    topNum: word = frameData[upY][leftX] + frameData[upY][x] + frameData[upY][rightX]
+    middleNum: word = frameData[y][leftX] + frameData[y][rightX]
+    bottomNum: word = frameData[downY][leftX] + frameData[downY][x] + frameData[downY][rightX]
+    return (topNum + middleNum + bottomNum)
+}
+
+func step(){
+    cellCount: word
+    for y: word = 0; y < 32; y = y + 1 do{
+        for x: word = 0; x < 32; x = x + 1 do{
+            cellCount = countAliveCells(x, y)
+            if frameData[y][x] == 1 then{
+                if cellCount == 3 or cellCount == 4 then
+                    nextFrameData[y][x] = 1
+                else nextFrameData[y][x] = 0
+            }
+            else{
+                if cellCount == 3 then nextFrameData[y][x] = 1
+                else nextFrameData[y][x] = 0
+            }
+        }
+    }
+}
+
+func checkForEnd():bool{
+    return true
+}
+
+func main(){
+    running: bool = true
+    setSeed(0x0413)
+    while true do{
+        setup(0xB0)
+        frame()
+        while checkForEnd() do{
+            step()
+            temp: word ptr = nextFrameData
+            nextFrameData = frameData
+            frameData = temp
+            frame()
+        }
+    }
+}
+
+func VBlank(){
+    sendFrame()
+}

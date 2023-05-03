@@ -370,7 +370,8 @@ object ExpressionParser {
             val bankedSymbol = scope(name.lexeme)
             bankedSymbol.form match
               case Symbol.Data(_, _, dataBank) => Expr.BankLiteral(dataBank)
-              case _ => throw Errors.CannotGetBankOfNonData(tokenBuffer.getFilename, innerExpr, bankedSymbol.dataType, token.lineNumber)
+              case _ => Expr.BankLiteral(0x7E)
+              //case _ => throw Errors.CannotGetBankOfNonData(tokenBuffer.getFilename, innerExpr, bankedSymbol.dataType, token.lineNumber)
           case _ => throw Errors.CannotGetBankOfNonVariable(tokenBuffer.getFilename, innerExpr, token.lineNumber)
       case TokenType.AsColour =>
         tokenBuffer.matchType(TokenType.LeftParen)
