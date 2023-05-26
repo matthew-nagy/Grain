@@ -5,6 +5,8 @@ import TreeWalker.{GrainTranslator, Optimise, Translator, TranslatorSymbolTable}
 import java.io.FileWriter
 import scala.collection.mutable.ListBuffer
 import scala.sys.process.Parser
+import scala.language.postfixOps
+import sys.process.stringToProcess
 
 object Compiler {
 
@@ -35,7 +37,7 @@ object Compiler {
       return
     }
 
-    var Output(generatedIr, firstDataBank) = apply(topLevels.toList, symbolTable.globalScope, translatorSymbolTable)
+    var Output(generatedIr, firstDataBank) = GrainTranslator(topLevels.toList, symbolTable.globalScope, translatorSymbolTable)
     generatedIr = Optimise(generatedIr)
 
     val assembly = generatedIr.map(Translator(_, firstDataBank)).foldLeft("")(_ ++ "\n" ++ _)
@@ -44,14 +46,8 @@ object Compiler {
     fileWriter.write(assembly)
     fileWriter.close()
 
-    {
-      GlobalData.Config.assemblerPath ++ "wla-65816.exe -v -o snes/compiled.obj snes/compiled.asm" !
-    }
-    {
-      GlobalData.Config.assemblerPath ++ "wlalink snes/compiled.link snes/compiled.smc" !
-    }
-    {
-      GlobalData.Config.emulatorPath ++ " .\\snes\\compiled.smc" !
-    }
+    {GlobalData.Config.assemblerPath ++ "wla-65816.exe -v -o snes/compiled.obj snes/compiled.asm"!}
+    {GlobalData.Config.assemblerPath ++ "wlalink snes/compiled.link snes/compiled.smc"!}
+    {GlobalData.Config.emulatorPath ++ " .\\snes\\compiled.smc"!}
   }
 }
