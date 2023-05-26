@@ -200,7 +200,12 @@ object Getting{
   def offsetAddress(address: Offsetable, offset: Int): (Address, IRBuffer) =
     address match
       case Direct(value) => (Direct(value + offset), IRBuffer())
-      case DirectIndexed(value, by) => (DirectIndexed(value + offset, by), IRBuffer())
+      case DirectIndexed(value, by) if (value + offset) < 256 => (DirectIndexed(value + offset, by), IRBuffer())
+      case DirectIndexed(value, by) if (value + offset) >= 256 =>
+        (DirectIndexed(0, by), IRBuffer().append(
+          IR.TransferToAccumulator(by) :: IR.ClearCarry() ::
+            IR.AddCarry(Immediate(offset + value)) :: IR.TransferAccumulatorTo(by) :: Nil
+        ))
       case DirectIndirectIndexed(value, by) => (DirectIndirectIndexed(value, by), IRBuffer()
         .append(IR.TransferToAccumulator(by) :: IR.ClearCarry() :: IR.AddCarry(Immediate(offset)) :: IR.TransferAccumulatorTo(by) :: Nil)
       )
