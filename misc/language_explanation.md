@@ -91,6 +91,76 @@ I sort of played a bit fast and loose with file extentions; its all text at the 
 
 ## Classes/Structs
 
+While they are refered to with the keyword `class`, they are a lot closer 
+to C structs. They may have member variables and member functions, however 
+there is no inheritance or overloading.
+
+When function pointers are supported, faux overloading could be performed by 
+giving an object function pointers. If these functions have their last argument be 
+a pointer to the objects type, it will pass itself automatically, as this is 
+how member functions work under the hood.
+
+Example:
+```
+class Vec2{
+    x: word
+    y: word
+    
+    func set(x: word, y: word){
+        @this.x = x
+        @this.y = y
+    }
+    func offset(dx: word, dy: word){
+        @this.x += dx
+        @this.y += dy
+    }
+}
+```
+You cannot have a class as a return type currently, so if you need to return one 
+you should pass in a pointer to an object. This was due to some poor planning 
+at the start of the project, and may be fixed later if I do some reworks
+
 ## Loading data
 
+There are three different filetypes directly supported. PNG files, CSV files, and 
+binary files.
+
+Some language features are provided to help you get information about the data you 
+have loaded which is of use if you plan to use it with library functions. 
+
+`sizeof(foo)` will give you the size in bytes of the variable `foo`
+
+`bankof(foo)` will give you the data bank the variable `foo` is stored in
+
+`bppof(foo)` will give you the bits per pixel of `foo`, assuming that makes sense for the type.
+Otherwise you'll be given an error.
+
+PNG example:
+```
+load enemySprites, enemyPalette from "../art/enemySpriteImage.png"
+```
+This loads in enemySpriteImage.png into ROM. The variable `enemySprites` 
+holds a pointer to it. It converts the colours into a SNES palette and stores 
+a pointer to that in `enemyPalette`. Their types are `tile_data ptr` and 
+`palette_data ptr` respectivly. 
+
+
+CSV/BIN example:
+```
+load level1Map from "../maps/level1.csv"
+```
+`level1Map` will have the type `rom_word[x]` where x is the size of the file in words. 
+rom_word can't be modified *or read*. This isn't ideal. In the future when `const` is implimented 
+and the way the IR and optimisations handle loading has changed a bit, it will just be an array 
+of `const word`. For now if you want to access it you will have to DMA it into WRAM.
+
+Binary files can be used to load in any data you need. CSV's were specifically used because most professional 
+tilemap making software (such as [tiled](https://www.mapeditor.org/)) let you export maps as CSV.
+
 ## Including files
+`include pathToMyFile` includes the file in the same way as C includes files.
+In the future I want to add something that prevents the same file from being included 
+multiple times, as that really prevents larger projects from being built.
+
+By including files stored in the src/main/GrainLib folder you can use some assembly functions I have 
+written to access certain SNES functions not encapsulated by this language.
